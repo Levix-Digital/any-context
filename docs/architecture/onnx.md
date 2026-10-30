@@ -1,20 +1,21 @@
 ---
 title: ONNX Inference
-summary: Optional local neural inference with the cross-encoder re-ranker on ONNX Runtime, plus heuristic perception components.
+summary: Local neural inference on ONNX Runtime (the text embedding model and the cross-encoder re-ranker), plus heuristic perception components.
 code: [crates/actx-onnx]
 ---
 
 # ONNX Inference
 
-Optional local neural inference with the cross-encoder re-ranker on ONNX Runtime, plus heuristic perception components.
+Local neural inference on ONNX Runtime (the text embedding model and the cross-encoder re-ranker), plus heuristic perception components.
 
 ## Responsibilities
 
 - Load the ONNX Runtime shared library lazily and run inference sessions on the CPU.
+- Embed texts with the local embedding model used by [ingestion](ingestion.md) and [retrieval](retrieval.md).
 - Score `(query, document)` pairs with the cross-encoder re-ranker used by Stage 2 of [retrieval](retrieval.md).
 - Provide the query classifier, scan sentinel, layout extractor and vision encoder components, which today are deterministic heuristics.
 - Model execution devices and Gemma 4 tiers for the surfaces that display them.
-- Never break the caller: a missing library, missing weights or a failed load always degrade to the non-neural path.
+- Never break the caller: for the re-ranker and the heuristic components, a missing library, missing weights or a failed load always degrade to the non-neural path. The embedder is the exception: it returns the error, because embeddings never fall back (ADR-0154).
 
 The catalog and downloads of the model files belong to [Model Catalog and Hardware Profiling](model-catalog.md).
 
@@ -23,7 +24,8 @@ The catalog and downloads of the model files belong to [Model Catalog and Hardwa
 | Module | Role | Status |
 |---|---|---|
 | `runtime.rs` | `OnnxSession`, `TensorOutput`, library resolution and lazy loading (`runtime` feature). | Neural runtime |
-| `tokenizer.rs` | `PairTokenizer` over `tokenizer.json` (`tokenizers` crate). | Used by the re-ranker |
+| `tokenizer.rs` | `PairTokenizer` over `tokenizer.json` (`tokenizers` crate): pairs for the re-ranker, single texts for the embedder. | Used by the re-ranker and the embedder |
+| `embedder.rs` | `OnnxEmbedder`, `EmbedderConfig`, `EmbeddingPooling`, `pool`, `model_files`. | **Neural** |
 | `reranker.rs` | `OnnxReranker`: cross-encoder scoring. | **Neural** |
 | `query_classifier.rs` | `OnnxQueryClassifier`, `OnnxComplexity`, `OnnxIntent`. | Heuristic |
 | `scan_sentinel.rs` | `OnnxScanSentinel`. | Heuristic |
@@ -44,6 +46,15 @@ Cargo features: `runtime = ["dep:ort", "dep:tokenizers"]` (off by default in thi
 - The binary has no link-time dependency on ONNX Runtime. The library is loaded explicitly with `ort::init_from(path)` (inside `catch_unwind`) before any other `ort` API is used, because an implicit load would panic.
 - Sessions use the CPU execution provider with `intra_threads = min(cores, 4)`.
 - Without the `runtime` feature, or when the library is missing or incompatible, every load returns a descriptive error.
+
+### Text embedder
+
+- Each model is a directory with `model.onnx` and `tokenizer.json` (the catalog's `multilingual-e5-small`, `multilingual-e5-base` and `bge-m3` INT8 exports). `EmbedderConfig` carries the paths, dimension, input limit and pooling, all from the core's embedding catalog.
+- The session and tokenizer load on the first call (`ensure_loaded`); a graph without `input_ids` and `attention_mask` is rejected.
+- Texts are tokenized one per row, padded with the model's own pad token and truncated at the input limit (512); truncated texts are counted (`truncated_inputs`). Batches of 16 (`EMBED_BATCH_SIZE`) pass `input_ids`, `attention_mask` and, when the graph has it, `token_type_ids`.
+- `pool` turns `last_hidden_state` into one vector per text, by mean under the attention mask (e5) or the first token (BGE-M3), then L2-normalizes it and checks the dimension.
+- `embed` is blocking (callers use `spawn_blocking`) and returns an error, never a vector, when the files, the library or the run fail.
+- The INT8 exports quantize activations over the whole batch, so the same text embedded alone or in a batch differs by about 0.003 in cosine. `tests/embedder_reference.rs` compares the output with vectors computed by the Python `onnxruntime` and `tokenizers` on the same file (`tests/fixtures/embedder/make_reference.py`); CI provides the model and sets `ACTX_REQUIRE_EMBEDDER_TESTS=1`.
 
 ### Cross-encoder re-ranker
 
@@ -70,7 +81,7 @@ These components report their status as `heuristic` and never claim to be neural
 
 ## Interfaces
 
-- **Called by**: [retrieval](retrieval.md) (`OnnxReranker` in `NativeHybridPipeline`), the [CLI](cli.md) (`create_default_reranker`, `--device`, `--rerank`), the [TUI](tui.md) (re-ranker and device badges), the [agent](agent.md) (query classifier through the core adapter), [language model providers](lm-providers.md) (`GemmaOnnxProvider` uses `OnnxGemmaEngine` and always falls back).
+- **Called by**: [ingestion](ingestion.md) and [retrieval](retrieval.md) (`OnnxEmbedder` behind the core's `LocalEmbeddingProvider`), [retrieval](retrieval.md) (`OnnxReranker` in `NativeHybridPipeline`), the [CLI](cli.md) (`create_default_reranker`, `--device`, `--rerank`), the [TUI](tui.md) (re-ranker and device badges), the [agent](agent.md) (query classifier through the core adapter), [language model providers](lm-providers.md) (`GemmaOnnxProvider` uses `OnnxGemmaEngine` and always falls back).
 - **Depends on**: the ONNX Runtime shared library shipped by the release (see [CI and Release](ci-release.md)) and the model files downloaded by the [model catalog](model-catalog.md) or provisioned by the [installer](installer.md).
 
 ## Decisions
@@ -80,3 +91,4 @@ These components report their status as `heuristic` and never claim to be neural
 - [ADR-0127](../adr/0127-cross-platform-hardware-acceleration-matrix.md): execution device abstraction.
 - [ADR-0129](../adr/0129-two-stage-retrieval-cross-encoder-reranking.md): `OnnxReranker` with `score_batch` and `score_pair`.
 - [ADR-0130](../adr/0130-real-onnx-runtime-multilingual-cross-encoder.md): real ONNX Runtime with `load-dynamic`, CPU only, multilingual cross-encoder, heuristic components reported honestly, Gemma 4 planned.
+- [ADR-0154](../adr/0154-local-embedding-model-with-its-own-setting-and-no-fallback.md): `OnnxEmbedder`, the local embedding model.

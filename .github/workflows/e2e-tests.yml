@@ -65,6 +65,25 @@ jobs:
           fi
           echo "ACTX_REQUIRE_ORT=1" >> "$GITHUB_ENV"
 
+      # FEAT-067: the embedder reference test needs the real multilingual-e5-small files
+      # (about 135 MB), fetched by the product's verified download and cached by the catalog file.
+      - name: Embedding Model Cache
+        uses: actions/cache@v4
+        with:
+          path: .models-embedder
+          key: embedder-e5-small-${{ hashFiles('crates/any-context-core-rs/src/ingestion/model_manager.rs') }}
+
+      - name: Provision Embedding Model
+        shell: bash
+        run: |
+          ACTX_MODELS_DIR="$PWD/.models-embedder" cargo run -q -p actx-cli -- download multilingual-e5-small
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            echo "ACTX_EMBEDDER_MODELS_DIR=$(cygpath -w "$PWD/.models-embedder")" >> "$GITHUB_ENV"
+          else
+            echo "ACTX_EMBEDDER_MODELS_DIR=$PWD/.models-embedder" >> "$GITHUB_ENV"
+          fi
+          echo "ACTX_REQUIRE_EMBEDDER_TESTS=1" >> "$GITHUB_ENV"
+
       - name: Run Workspace Tests
         run: cargo test --workspace --verbose
 

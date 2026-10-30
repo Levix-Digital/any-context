@@ -8,7 +8,7 @@ subsystems: [retrieval, ingestion, cli]
 supersedes: []
 superseded_by: []
 amends: [94]
-amended_by: []
+amended_by: [154]
 ---
 
 # ADR-0147: Constant vectors never reach dense search: the mock target is BM25 only and Global is embedded with the default target

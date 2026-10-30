@@ -89,6 +89,7 @@ ADR-0111 was never written.
 <!-- architecture-docs:adrs:start -->
 | ADR | Title | Status | Version | Date |
 |---|---|---|---|---|
+| [ADR-0154](docs/adr/0154-local-embedding-model-with-its-own-setting-and-no-fallback.md) | Local embedding model with its own setting and no fallback | accepted | v1.0.0 | 2026-10-30 |
 | [ADR-0153](docs/adr/0153-a-development-retrieval-benchmark-gates-retrieval-changes.md) | A development retrieval benchmark gates retrieval changes | accepted | v1.0.0 | 2026-10-25 |
 | [ADR-0152](docs/adr/0152-web-search-uses-only-allowed-search-apis-and-never-scrapes.md) | Web search uses only allowed search APIs and never scrapes | accepted | v1.0.0 | 2026-10-25 |
 | [ADR-0151](docs/adr/0151-online-only-cloud-files-are-never-downloaded-by-the-scan.md) | Online-only cloud files are never downloaded by the scan | accepted | v1.0.0 | 2026-10-25 |

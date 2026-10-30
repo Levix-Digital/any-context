@@ -127,15 +127,19 @@ If the embedding provider fails during a sync (an invalid key, a rate limit, a n
 | `/keys <provider> <key>` | Save an API key (`openai`, `anthropic`, `gemini`, `deepseek`, `groq`, `openrouter`, `mistral`) |
 | `/preset balanced` / `frontier` | Apply a ready-made combination of model, answer mode and search depth |
 | `/preset offline` / `privacy` | With a local Ollama model selected: strict answers, quick search, no web search |
+| `/embedding` | Show the embedding model used to index and search, and the models you can choose |
+| `/embedding <model> --yes` | Switch the embedding model; the affected workspaces are reindexed on their next sync |
 | `/rerank auto` / `on` / `off` | Control local re-ranking; `/rerank` shows its status |
 | `/download reranker` | Install or repair the local re-ranker model |
 | `/profile` | Show or change the hardware profile |
 
 Local Gemma 4 models are listed as planned and cannot be used yet.
 
-Search embeddings come from the provider of the selected model (OpenAI, Gemini, Ollama), or from OpenAI when that provider has no key. When a model change switches the embedding provider, `/model` warns you and the next sync reindexes the whole workspace once, which costs one embedding pass. Without an embedding key, search uses keyword matches only until you save one with `/keys` and run `/sync`.
+Search embeddings come from a local multilingual model that runs on your machine, chosen by your hardware profile: no key is needed and no document text leaves the computer. It is downloaded with the profile, or on the first sync if it is missing. The language model you pick with `/model` never changes it. `/embedding` shows the model in use and lets you switch to another local model or to a cloud one (`text-embedding-3-small`, `gemini-embedding-2`, or `nomic-embed-text` on Ollama); switching asks for `--yes`, lists the workspaces that will be reindexed and warns when document text would be sent to a provider. If the chosen model cannot run (a missing key, a failed download, a file that does not match its checksum), the sync stops before indexing and says how to fix it; AnyContext never indexes with another model. After an update, workspaces indexed with a cloud model keep that model.
 
-Questions about AnyContext itself are answered from its built-in documentation. A sync embeds that documentation with the embedding model of your default model when it needs it (after an install, an update or a change of default model), so it is matched by meaning; until then it is found by keyword.
+Companies can serve the model files from their own server: set `ACTX_MODELS_MIRROR` (or the `models_mirror` setting) to its address and AnyContext downloads only from `<mirror>/<model>/<file>`, never from the public source. Files copied by hand into the models folder are used as they are, after their checksum is verified.
+
+Questions about AnyContext itself are answered from its built-in documentation. A sync embeds that documentation with your embedding model when it needs it (after an install, an update or a change of embedding model), so it is matched by meaning; until then it is found by keyword.
 
 ### Other commands
 
@@ -176,8 +180,8 @@ Most settings are per workspace and change through commands (`/model`, `/mode`, 
 | `TAVILY_API_KEY` | Web search key (or `/keys tavily <key>`); without it, web search stays off |
 | `JINA_API_KEY` | Higher limits for website extraction |
 | `ACTX_MODEL` | Model for this shell, overriding the workspace setting |
-| `ACTX_EMBEDDING_MODEL` | Model used to index and search (re-index after changing it) |
 | `ACTX_CONTEXT_DB`, `ACTX_SETTINGS_DB`, `ACTX_MODELS_DIR` | Custom locations for the index, settings and models |
+| `ACTX_MODELS_MIRROR` | Server that local model files are downloaded from instead of the public source |
 | `ACTX_SKIP_MODEL_DOWNLOAD=1` | Install or update without downloading local models |
 
 Where AnyContext keeps its data:
@@ -198,7 +202,7 @@ Update from a terminal (not from inside the interface):
 actx --update
 ```
 
-Re-index a workspace after changing its model or embedding settings:
+Re-index a workspace from scratch (switching the embedding model with `/embedding` reindexes on its own):
 
 ```bash
 actx --sync --force -w <workspace>
@@ -218,9 +222,9 @@ To uninstall, download and run the uninstaller from the [releases page](https://
 | A sync reports `has no sources` | The workspace has no folder or site: add one with `/folder <path>` or `/web <url>`. |
 | The sync seems stuck | Check the footer or `/status`; read `sync_<workspace>.log` in the logs folder; `/cancel` and `/sync --incremental` again. |
 | The footer shows `⚠ N files not embedded (/sync)` | The embedding provider failed during the last sync: check the `Last Sync` line in `/status` (or `sync_<workspace>.log`), fix the key or wait for the rate limit, then run `/sync --incremental`. |
-| `/status` shows `Dense Search: BM25 only` | The last question could not be embedded, so it was answered from keyword matches only; the reason follows. Check the key with `/keys` and the embedding model. |
-| `/status` shows `BM25 only (last query): no embedding API key (/keys)` | No embedding provider has a key, so search uses keyword matches only. Save an OpenAI or Gemini key with `/keys <provider> <key>` (or select a local Ollama model) and run `/sync`; the workspace is reindexed once with real embeddings. |
-| Answers miss documents indexed before you switched models | Run `/sync --force` once to re-embed the workspace with the current embedding model. |
+| `/status` shows `Dense Search: BM25 only` | The last question could not be embedded, so it was answered from keyword matches only; the reason follows. Check the embedding model with `/embedding` (and its key with `/keys` for a cloud model). |
+| A sync stops with `Embedding model <model> is unavailable` | The chosen embedding model cannot run; the message gives the cause and the fix (download it with `actx download <model>`, copy its files into the models folder, save the provider key, or choose another model with `/embedding`). The index is unchanged. |
+| `/status` shows `BM25 only (last query): indexed without an embedding model; sync to embed it` | The workspace was indexed by an older version without an embedding key. Run `/sync`: it is reindexed once with the local embedding model. |
 | Answers cite files without line ranges | Files indexed by an earlier version have no section or line data until they change; run `/sync --force` once to re-index them. PDF, Office, spreadsheet and web sources are cited by page, sheet or section, never by line. |
 | `/rerank` shows `RRF (Fallback)` | The local re-ranker is not installed or could not load: run `actx download reranker`, and on Windows install the Visual C++ Redistributable. |
 | `actx --update` says the packages are still being built | A release was just published; try again in a few minutes. |

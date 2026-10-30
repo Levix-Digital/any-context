@@ -14,7 +14,7 @@ use std::time::Instant;
 
 use sha2::{Digest, Sha256};
 
-use crate::ingestion::embedding::{decide_reindex, resolve_embedding_provider, EmbeddingTarget, ReindexDecision};
+use crate::ingestion::embedding::{decide_reindex, prepare_embedding, EmbeddingTarget, ReindexDecision, ResolvedEmbedding};
 use crate::ingestion::enricher::NativeContextualEnricher;
 use crate::ingestion::model_router::IngestionModelRouter;
 use crate::ingestion::router::IngestionRouter;
@@ -129,8 +129,9 @@ pub struct SyncOptions {
     pub target_folder: Option<String>,
     /// Verbose logging output
     pub verbose: bool,
-    /// Explicit model or provider override
-    pub model: Option<String>,
+    /// Embedding model id for this run only (tests and the benchmark). The product leaves it
+    /// `None`: the embedding model is the application setting, never the chat model (ADR-0154).
+    pub embedding_model: Option<String>,
 }
 
 impl Default for SyncOptions {
@@ -140,7 +141,7 @@ impl Default for SyncOptions {
             force: false,
             target_folder: None,
             verbose: false,
-            model: None,
+            embedding_model: None,
         }
     }
 }
@@ -180,6 +181,10 @@ pub struct SyncResult {
     pub embedding_failures: usize,
     /// The provider breaker of this pass opened, so later embedding calls were skipped.
     pub embedding_provider_unavailable: bool,
+    /// Key of the vector space this pass embedded with (ADR-0154).
+    pub embedding_target: String,
+    /// Texts cut at the local embedding model's input limit in this pass.
+    pub truncated_inputs: usize,
 }
 
 /// Status line for sources that could not be read: their index is kept until they come back,
@@ -343,13 +348,22 @@ impl NativeSyncOrchestrator {
             }
         };
 
-        // 1b. Embedding target: vectors from another target than the current one are purged and
-        // the whole workspace is re-embedded, even for a folder-scoped pass (ADR-0138).
-        let (mut lm_provider, embedding_target) = resolve_embedding_provider(&self.db, options.model.as_deref(), ws);
+        // 1b. Embedding model: the application setting (or the profile default), never another
+        // model when it cannot run: the pass stops here and the index stays as it is (ADR-0154).
+        // Vectors from another target than the current one are purged and the whole workspace is
+        // re-embedded, even for a folder-scoped pass (ADR-0138).
+        let mut embedding = match prepare_embedding(&self.db, options.embedding_model.as_deref()).await {
+            Ok(embedding) => embedding,
+            Err(unavailable) => {
+                let message = unavailable.to_string();
+                let _ = self.db.update_sync_status(ws, false, None, 0, 0, "idle", None, Some(&message));
+                return Err(message);
+            }
+        };
         if let Some(ref provider) = self.embedding_override {
-            lm_provider = Some(provider.clone());
+            embedding.provider = provider.clone();
         }
-        let embedding_model = embedding_target.model.clone();
+        let embedding_target = embedding.target.clone();
         let reindex = self.decide_embedding_reindex(ws, &embedding_target);
         let embedding_reindex = reindex.message();
         let full_reindex = matches!(reindex, ReindexDecision::Reindex { .. });
@@ -372,6 +386,7 @@ impl NativeSyncOrchestrator {
             println!("🦀 [AnyContext Native Rust Ingestion Pipeline]");
             println!("  • Workspace: {}", ws);
             println!("  • Force Reindex: {}", force);
+            println!("  • Embedding model: {} ({})", embedding.spec.id, embedding.source.describe());
             if let Some(ref msg) = embedding_reindex {
                 println!("  • {}", msg);
             }
@@ -555,6 +570,8 @@ impl NativeSyncOrchestrator {
                 no_sources: no_sources && web_urls.is_empty(),
                 embedding_failures: 0,
                 embedding_provider_unavailable: false,
+                embedding_target: embedding_target.key(),
+                truncated_inputs: embedding.truncated_inputs(),
             });
         }
 
@@ -614,6 +631,8 @@ impl NativeSyncOrchestrator {
                         no_sources: false,
                         embedding_failures: failures.count,
                         embedding_provider_unavailable: breaker.is_open(),
+                        embedding_target: embedding_target.key(),
+                        truncated_inputs: embedding.truncated_inputs(),
                     });
                 }
             }
@@ -665,7 +684,7 @@ impl NativeSyncOrchestrator {
                 total_documents_enriched_ai += 1;
                 let ai_chunks = self.model_router.process_document_ai_candidates(
                     ai_candidates,
-                    lm_provider.as_ref(),
+                    Some(&embedding.provider),
                 ).await;
                 approved_chunks.extend(ai_chunks);
             }
@@ -701,8 +720,7 @@ impl NativeSyncOrchestrator {
                 &file_name,
                 &content_hash,
                 mtime,
-                &lm_provider,
-                &embedding_model,
+                &embedding,
                 &mut bm25,
                 &mut breaker,
             ).await {
@@ -726,8 +744,7 @@ impl NativeSyncOrchestrator {
                 ws,
                 pid,
                 &enricher,
-                &lm_provider,
-                &embedding_model,
+                &embedding,
                 &mut bm25,
                 &mut breaker,
                 options.verbose,
@@ -800,6 +817,8 @@ impl NativeSyncOrchestrator {
             no_sources: false,
             embedding_failures: failures.count,
             embedding_provider_unavailable: breaker.is_open(),
+            embedding_target: embedding_target.key(),
+            truncated_inputs: embedding.truncated_inputs(),
         })
     }
 
@@ -814,8 +833,7 @@ impl NativeSyncOrchestrator {
         file_name: &str,
         content_hash: &str,
         mtime: f64,
-        lm_provider: &Option<Arc<dyn LmProvider>>,
-        embedding_model: &str,
+        embedding: &ResolvedEmbedding,
         bm25: &mut BM25Index,
         breaker: &mut EmbedBreaker,
     ) -> Result<usize, EmbedFailure> {
@@ -854,29 +872,28 @@ impl NativeSyncOrchestrator {
             chunk_ids.push(id);
         }
 
-        // 2. Generate Dense Embeddings. A failed call fails the file: no pseudo-vectors are
-        // stored next to real ones (ADR-0146). Without a provider, the offline fallback stays.
-        let vectors = if let Some(provider) = lm_provider {
-            if breaker.is_open() {
-                return Err(EmbedFailure::Skipped);
+        // 2. Generate Dense Embeddings, with the model's document prefix (IMP-029; the stored
+        // text and BM25 never see it). A failed call fails the file: no pseudo-vectors are ever
+        // stored (ADR-0146, IMP-028).
+        if breaker.is_open() {
+            return Err(EmbedFailure::Skipped);
+        }
+        let embed_texts: Vec<String> = chunk_texts.iter().map(|t| embedding.document_text(t)).collect();
+        let vectors = match embed_with_retry(&embedding.provider, embedding.spec.id, &embed_texts).await {
+            Ok(v) if v.len() == chunks.len() => {
+                breaker.record_success();
+                v
             }
-            match embed_with_retry(provider, embedding_model, &chunk_texts).await {
-                Ok(v) if v.len() == chunks.len() => {
-                    breaker.record_success();
-                    v
-                }
-                Ok(v) => {
-                    breaker.record_failure(false);
-                    return Err(EmbedFailure::ShortAnswer { expected: chunks.len(), got: v.len() });
-                }
-                Err(e) => {
-                    breaker.record_failure(matches!(e, LmError::Auth { .. }));
-                    return Err(EmbedFailure::Provider(e));
-                }
+            Ok(v) => {
+                breaker.record_failure(false);
+                return Err(EmbedFailure::ShortAnswer { expected: chunks.len(), got: v.len() });
             }
-        } else {
-            generate_fallback_vectors(&chunk_texts, DEFAULT_VECTOR_DIM)
+            Err(e) => {
+                breaker.record_failure(matches!(e, LmError::Auth { .. }));
+                return Err(EmbedFailure::Provider(e));
+            }
         };
+        let target_key = embedding.target.key();
 
         // 3. Assemble VectorRecords for LanceDB, with the chunk provenance (ADR-0142)
         let file_lines = self.router.has_file_lines(file_path);
@@ -905,6 +922,7 @@ impl NativeSyncOrchestrator {
                 header_path: c.header_path.clone().filter(|h| !h.trim().is_empty()),
                 start_line,
                 end_line,
+                embedding_target: Some(target_key.clone()),
             });
         }
 
@@ -923,8 +941,7 @@ impl NativeSyncOrchestrator {
         workspace: &str,
         pid: u32,
         enricher: &NativeContextualEnricher,
-        lm_provider: &Option<Arc<dyn LmProvider>>,
-        embedding_model: &str,
+        embedding: &ResolvedEmbedding,
         bm25: &mut BM25Index,
         breaker: &mut EmbedBreaker,
         verbose: bool,
@@ -970,8 +987,7 @@ impl NativeSyncOrchestrator {
                     &page,
                     workspace,
                     enricher,
-                    lm_provider,
-                    embedding_model,
+                    embedding,
                     bm25,
                     breaker,
                 ).await {
@@ -991,8 +1007,7 @@ impl NativeSyncOrchestrator {
         page: &crate::ingestion::crawler::CrawledPage,
         workspace: &str,
         enricher: &NativeContextualEnricher,
-        lm_provider: &Option<Arc<dyn LmProvider>>,
-        embedding_model: &str,
+        embedding: &ResolvedEmbedding,
         bm25: &mut BM25Index,
         breaker: &mut EmbedBreaker,
     ) -> Result<bool, String> {
@@ -1045,8 +1060,7 @@ impl NativeSyncOrchestrator {
             &page.title,
             &hash_hex,
             page_mtime,
-            lm_provider,
-            embedding_model,
+            embedding,
             bm25,
             breaker,
         ).await.map_err(|e| e.to_string())?;
@@ -1105,9 +1119,12 @@ impl NativeSyncOrchestrator {
     }
 
     /// Records the target once a pass completed, so a cancelled reindex is retried next time.
+    /// A kept target is rewritten too when it was stored in the key format before ADR-0154.
     fn record_embedding_target(&self, workspace: &str, decision: &ReindexDecision, target: &EmbeddingTarget) {
-        if *decision != ReindexDecision::Keep {
-            let _ = self.db.set_workspace_embedding_target(workspace, Some(&target.key()));
+        let key = target.key();
+        let stored = self.db.get_workspace_embedding_target(workspace).ok().flatten().flatten();
+        if *decision != ReindexDecision::Keep || stored.as_deref() != Some(key.as_str()) {
+            let _ = self.db.set_workspace_embedding_target(workspace, Some(&key));
         }
     }
 }
@@ -1127,26 +1144,6 @@ fn compute_file_sha256(path: &Path) -> std::io::Result<String> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
-/// Generates normalized deterministic pseudo-vectors when operating offline without API keys.
-fn generate_fallback_vectors(texts: &[String], dim: usize) -> Vec<Vec<f32>> {
-    texts
-        .iter()
-        .map(|t| {
-            let mut hasher = Sha256::new();
-            hasher.update(t.as_bytes());
-            let hash = hasher.finalize();
-
-            let mut vec = Vec::with_capacity(dim);
-            let hash_len = hash.len();
-            for i in 0..dim {
-                let byte = hash[i % hash_len];
-                let val = ((byte as f32 / 255.0) - 0.5) * 0.1;
-                vec.push(val);
-            }
-            vec
-        })
-        .collect()
-}
 
 /// Fast HTML tag stripper for web portal scraping without heavy external dependencies.
 pub fn strip_html_tags(html: &str) -> String {
@@ -1204,6 +1201,18 @@ pub fn strip_html_tags(html: &str) -> String {
 mod tests {
     use super::*;
 
+    /// The mock model's embedding, for tests that need rows but no meaningful vectors.
+    fn mock_embedding() -> ResolvedEmbedding {
+        let spec = crate::ingestion::find_embedding_model("mock").expect("mock model");
+        ResolvedEmbedding::with_provider(spec, Arc::new(actx_lm::providers::mock::MockLmProvider::new()))
+    }
+
+    /// An embedding whose provider is the given test double.
+    fn scripted_embedding(provider: Arc<dyn LmProvider>) -> ResolvedEmbedding {
+        let spec = crate::ingestion::find_embedding_model("mock").expect("mock model");
+        ResolvedEmbedding::with_provider(spec, provider)
+    }
+
     #[test]
     fn test_compute_file_sha256() {
         let temp = std::env::temp_dir().join(format!("test_sha_{}.txt", std::process::id()));
@@ -1211,16 +1220,6 @@ mod tests {
         let hash = compute_file_sha256(&temp).unwrap();
         assert_eq!(hash.len(), 64);
         let _ = std::fs::remove_file(temp);
-    }
-
-    #[test]
-    fn test_generate_fallback_vectors() {
-        let texts = vec!["hello world".to_string(), "any-context".to_string()];
-        let vecs = generate_fallback_vectors(&texts, 1536);
-        assert_eq!(vecs.len(), 2);
-        assert_eq!(vecs[0].len(), 1536);
-        assert_eq!(vecs[1].len(), 1536);
-        assert_ne!(vecs[0], vecs[1]);
     }
 
     #[test]
@@ -1259,13 +1258,14 @@ mod tests {
                 header_path: None,
                 start_line: None,
                 end_line: None,
+                embedding_target: None,
             }],
         );
         let orchestrator = NativeSyncOrchestrator::new(lance_store.clone(), db);
         let opts = SyncOptions {
             workspace: "LegacyWS".to_string(),
             target_folder: Some(docs_dir.to_string_lossy().to_string()),
-            model: Some("mock".to_string()),
+            embedding_model: Some("mock".to_string()),
             ..SyncOptions::default()
         };
 
@@ -1312,19 +1312,19 @@ mod tests {
 
         let v1 = "# Guide\n\nThe service listens on port 8080 and reads its configuration from settings.toml at startup.";
         let sub = "# Install\n\nRun the installer, then open a new terminal and start the application with actx.";
-        assert!(orchestrator.index_web_page(&page(child, sub), "WebWS", &enricher, &None, "mock", &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
-        assert!(orchestrator.index_web_page(&page(parent, v1), "WebWS", &enricher, &None, "mock", &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
+        assert!(orchestrator.index_web_page(&page(child, sub), "WebWS", &enricher, &mock_embedding(), &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
+        assert!(orchestrator.index_web_page(&page(parent, v1), "WebWS", &enricher, &mock_embedding(), &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
         let parent_chunks = count(parent);
         let child_chunks = count(child);
         assert!(parent_chunks > 0 && child_chunks > 0);
 
         // Same content again: skipped, nothing appended.
-        assert!(!orchestrator.index_web_page(&page(parent, v1), "WebWS", &enricher, &None, "mock", &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
+        assert!(!orchestrator.index_web_page(&page(parent, v1), "WebWS", &enricher, &mock_embedding(), &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
         assert_eq!(count(parent), parent_chunks);
 
         // Changed content: old chunks replaced, and the sub-page under the same URL prefix is untouched.
         let v2 = "# Guide\n\nThe service now listens on port 9090 and reads its configuration from config.toml at startup.";
-        assert!(orchestrator.index_web_page(&page(parent, v2), "WebWS", &enricher, &None, "mock", &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
+        assert!(orchestrator.index_web_page(&page(parent, v2), "WebWS", &enricher, &mock_embedding(), &mut bm25, &mut EmbedBreaker::default()).await.unwrap());
         let hits = lance_store
             .search_metadata(&format!("file_path = '{parent}'"), 1000, Some("WebWS"), None)
             .unwrap();
@@ -1374,8 +1374,7 @@ mod tests {
             "rank.rs",
             "mockhash123456",
             1000.0,
-            &None,
-            "mock",
+            &mock_embedding(),
             &mut bm25,
             &mut EmbedBreaker::default(),
         ).await.unwrap();
@@ -1426,8 +1425,7 @@ mod tests {
                 &c.file_name,
                 "provhash1234567",
                 1000.0,
-                &None,
-                "mock",
+                &mock_embedding(),
                 &mut bm25,
                 &mut EmbedBreaker::default(),
             )
@@ -1524,6 +1522,65 @@ mod tests {
         }
     }
 
+    /// Records the texts it embeds and answers with vectors of the given dimension.
+    struct RecordingEmbedder {
+        dimension: usize,
+        texts: std::sync::Mutex<Vec<String>>,
+    }
+
+    #[async_trait::async_trait]
+    impl LmProvider for RecordingEmbedder {
+        fn provider_id(&self) -> &'static str {
+            "recording"
+        }
+
+        async fn chat_complete(&self, _request: actx_lm::types::ChatRequest) -> Result<actx_lm::types::ChatResponse, LmError> {
+            Err(LmError::Unsupported("chat".into()))
+        }
+
+        async fn chat_stream(&self, _request: actx_lm::types::ChatRequest) -> Result<actx_lm::traits::BoxedChunkStream, LmError> {
+            Err(LmError::Unsupported("chat".into()))
+        }
+
+        async fn embed(&self, _model: &str, texts: &[String]) -> Result<Vec<Vec<f32>>, LmError> {
+            self.texts.lock().unwrap().extend(texts.iter().cloned());
+            Ok(vec![vec![0.05; self.dimension]; texts.len()])
+        }
+    }
+
+    /// IMP-029: the model receives the document prefix of its space; the stored text, which BM25
+    /// and the answer read, never carries it. The record names the prefixed space.
+    #[tokio::test]
+    async fn test_document_prefix_reaches_the_model_only() {
+        let temp_dir = std::env::temp_dir().join(format!("test_orch_prefix_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        let db = Arc::new(NativeConfigDb::open_in_memory().unwrap());
+        let lance_store = Arc::new(NativeLanceStore::open(&temp_dir.join("lancedb")).unwrap());
+        let orchestrator = NativeSyncOrchestrator::new(lance_store.clone(), db.clone());
+        let enricher = NativeContextualEnricher::new(db);
+        let spec = crate::ingestion::find_embedding_model("multilingual-e5-small").unwrap();
+        let recorder = Arc::new(RecordingEmbedder { dimension: spec.dimension, texts: Default::default() });
+        let embedding = ResolvedEmbedding::with_provider(spec, recorder.clone());
+        let c = chunk("md_0", "docs/guide.md", "guide.md > Timeouts", 1, 5, "markdown");
+        let mut bm25 = BM25Index::new(None, None);
+        orchestrator
+            .embed_and_upsert_chunks(&[c.clone()], None, &enricher, "Default", &c.file_path, &c.file_name, "prefixhash12345", 1000.0, &embedding, &mut bm25, &mut EmbedBreaker::default())
+            .await
+            .unwrap();
+
+        let sent = recorder.texts.lock().unwrap().clone();
+        assert_eq!(sent.len(), 1);
+        assert!(sent[0].starts_with("passage: "), "{}", sent[0]);
+        let rows = lance_store.search_metadata("id <> ''", 10, Some("Default"), None).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert!(!rows[0].text.contains("passage: "), "stored text must not carry the prefix: {}", rows[0].text);
+        let filtered = lance_store
+            .search_metadata("embedding_target = 'local/multilingual-e5-small@384+p1'", 10, Some("Default"), None)
+            .unwrap();
+        assert_eq!(filtered.len(), 1, "the record names the prefixed vector space");
+        let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
     async fn upsert_with(tag: &str, provider: Arc<ScriptedEmbedder>, chunks: Vec<ChunkPayload>) -> (Result<usize, EmbedFailure>, usize, BM25Index) {
         let temp_dir = std::env::temp_dir().join(format!("test_orch_fail_{tag}_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&temp_dir);
@@ -1534,9 +1591,9 @@ mod tests {
         let mut bm25 = BM25Index::new(None, None);
         let file_path = chunks[0].file_path.clone();
         let file_name = chunks[0].file_name.clone();
-        let lm: Option<Arc<dyn LmProvider>> = Some(provider);
+        let embedding = scripted_embedding(provider);
         let result = orchestrator
-            .embed_and_upsert_chunks(&chunks, None, &enricher, "Default", &file_path, &file_name, "failhash1234567", 1000.0, &lm, "scripted", &mut bm25, &mut EmbedBreaker::default())
+            .embed_and_upsert_chunks(&chunks, None, &enricher, "Default", &file_path, &file_name, "failhash1234567", 1000.0, &embedding, &mut bm25, &mut EmbedBreaker::default())
             .await;
         let rows = lance_store.search_metadata("id <> ''", 100, Some("Default"), None).unwrap_or_default().len();
         let _ = std::fs::remove_dir_all(temp_dir);
@@ -1577,7 +1634,7 @@ mod tests {
         SyncOptions {
             workspace: ws.to_string(),
             target_folder: Some(docs_dir.to_string_lossy().to_string()),
-            model: Some("mock".to_string()),
+            embedding_model: Some("mock".to_string()),
             ..SyncOptions::default()
         }
     }
@@ -1652,8 +1709,8 @@ mod tests {
             etag: None,
             content_type: None,
         };
-        let lm: Option<Arc<dyn LmProvider>> = Some(ScriptedEmbedder::new(EmbedBehavior::RateLimited));
-        let err = orchestrator.index_web_page(&page, "WebWS", &enricher, &lm, "scripted", &mut bm25, &mut EmbedBreaker::default()).await.unwrap_err();
+        let embedding = scripted_embedding(ScriptedEmbedder::new(EmbedBehavior::RateLimited));
+        let err = orchestrator.index_web_page(&page, "WebWS", &enricher, &embedding, &mut bm25, &mut EmbedBreaker::default()).await.unwrap_err();
         assert!(err.contains("embedding failed"), "{err}");
         assert_eq!(lance_store.count_records(Some("WebWS"), None).unwrap_or(0), 0);
 

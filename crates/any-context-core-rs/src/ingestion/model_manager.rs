@@ -25,6 +25,7 @@ pub enum OnnxModelCategory {
     QueryClassifier,
     DocumentVision,
     ReRanker,
+    Embedding,
 }
 
 impl OnnxModelCategory {
@@ -36,6 +37,7 @@ impl OnnxModelCategory {
             Self::QueryClassifier => "Query Classifier",
             Self::DocumentVision => "Document Vision",
             Self::ReRanker => "Neural Re-Ranker",
+            Self::Embedding => "Embedding Model",
         }
     }
 }
@@ -82,6 +84,12 @@ impl OnnxModelSpec {
         self.availability == ModelAvailability::Available
     }
 }
+
+/// Environment override of the model mirror base URL.
+pub const MODELS_MIRROR_ENV: &str = "ACTX_MODELS_MIRROR";
+/// Setting with the model mirror base URL (an internal server that serves the catalog's files
+/// under their `file_name` paths).
+pub const MODELS_MIRROR_SETTING: &str = "models_mirror";
 
 /// Default cross-encoder used by the two-stage retrieval pipeline.
 pub const DEFAULT_RERANKER_ID: &str = "mmarco-reranker";
@@ -263,6 +271,80 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         description: "Higher-quality multilingual cross-encoder for 32GB+ workstations (Apache-2.0, CPU)",
         fallback_description: "Reciprocal Rank Fusion (RRF) ordering ($0.00 / Zero Network Leaks)",
     },
+    // --- Local multilingual embedding models (FEAT-067, ADR-0154). INT8 ONNX exports of the
+    // MIT-licensed originals; the default of each profile is set by the retrieval benchmark.
+    OnnxModelSpec {
+        id: "multilingual-e5-small",
+        name: "Multilingual E5 Small (INT8 ONNX, 384 dimensions)",
+        category: OnnxModelCategory::Embedding,
+        file_name: "multilingual-e5-small/model.onnx",
+        size_bytes: 135_137_323,
+        files: &[
+            ModelFile {
+                file_name: "multilingual-e5-small/model.onnx",
+                url: "https://huggingface.co/Xenova/multilingual-e5-small/resolve/761b726dd34fb83930e26aab4e9ac3899aa1fa78/onnx/model_int8.onnx",
+                size_bytes: 118_054_593,
+                sha256: "4d24e2bc01a447951524466ef533e52944bf48509e6552810bcee1a2711cb02c",
+            },
+            ModelFile {
+                file_name: "multilingual-e5-small/tokenizer.json",
+                url: "https://huggingface.co/Xenova/multilingual-e5-small/resolve/761b726dd34fb83930e26aab4e9ac3899aa1fa78/tokenizer.json",
+                size_bytes: 17_082_730,
+                sha256: "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39",
+            },
+        ],
+        availability: ModelAvailability::Available,
+        description: "Local multilingual embeddings, 100+ languages (MIT, CPU)",
+        fallback_description: "None: semantic search needs an embedding model",
+    },
+    OnnxModelSpec {
+        id: "multilingual-e5-base",
+        name: "Multilingual E5 Base (INT8 ONNX, 768 dimensions)",
+        category: OnnxModelCategory::Embedding,
+        file_name: "multilingual-e5-base/model.onnx",
+        size_bytes: 295_266_822,
+        files: &[
+            ModelFile {
+                file_name: "multilingual-e5-base/model.onnx",
+                url: "https://huggingface.co/Xenova/multilingual-e5-base/resolve/1ec9243030a27d1a115d5c340572074c125b58b2/onnx/model_int8.onnx",
+                size_bytes: 278_184_162,
+                sha256: "9ddfd8b45086dabc59a7e1bb00463225dace8954962418b240840f2153bc87da",
+            },
+            ModelFile {
+                file_name: "multilingual-e5-base/tokenizer.json",
+                url: "https://huggingface.co/Xenova/multilingual-e5-base/resolve/1ec9243030a27d1a115d5c340572074c125b58b2/tokenizer.json",
+                size_bytes: 17_082_660,
+                sha256: "62c24cdc13d4c9952d63718d6c9fa4c287974249e16b7ade6d5a85e7bbb75626",
+            },
+        ],
+        availability: ModelAvailability::Available,
+        description: "Local multilingual embeddings, 100+ languages (MIT, CPU)",
+        fallback_description: "None: semantic search needs an embedding model",
+    },
+    OnnxModelSpec {
+        id: "bge-m3",
+        name: "BGE-M3 dense (INT8 ONNX, 1024 dimensions)",
+        category: OnnxModelCategory::Embedding,
+        file_name: "bge-m3/model.onnx",
+        size_bytes: 585_539_515,
+        files: &[
+            ModelFile {
+                file_name: "bge-m3/model.onnx",
+                url: "https://huggingface.co/Xenova/bge-m3/resolve/4de13258303883538bd53b696b452bf8099f0858/onnx/model_int8.onnx",
+                size_bytes: 568_456_694,
+                sha256: "a206e10e995aa2a833924bcd725ba5dd6c3425cd34bac3cf2b5677cd2a1c51d6",
+            },
+            ModelFile {
+                file_name: "bge-m3/tokenizer.json",
+                url: "https://huggingface.co/Xenova/bge-m3/resolve/4de13258303883538bd53b696b452bf8099f0858/tokenizer.json",
+                size_bytes: 17_082_821,
+                sha256: "6710678b12670bc442b99edc952c4d996ae309a7020c1fa0096dd245c2faf790",
+            },
+        ],
+        availability: ModelAvailability::Available,
+        description: "Local multilingual embeddings, 100+ languages, long inputs (MIT, CPU)",
+        fallback_description: "None: semantic search needs an embedding model",
+    },
 ];
 
 static SELECTED_RERANKER: std::sync::RwLock<Option<String>> = std::sync::RwLock::new(None);
@@ -415,7 +497,7 @@ impl OnnxModelManager {
         if clean == "reranker" || clean == "rerank" || clean == "mmarco" || clean.contains("mmarco") {
             return Self::find_spec(DEFAULT_RERANKER_ID);
         }
-        if clean == "reranker-m3" || clean == "m3" || clean == "bge-m3" || clean == "bge-reranker" || clean.contains("reranker-v2") {
+        if clean == "reranker-m3" || clean == "m3" || clean == "bge-reranker" || clean.contains("reranker-v2") {
             return Self::find_spec("bge-reranker-v2-m3");
         }
 
@@ -660,6 +742,73 @@ impl OnnxModelManager {
         )
     }
 
+    /// Where model files are downloaded from: the mirror base URL set by `ACTX_MODELS_MIRROR`,
+    /// else the `models_mirror` setting, else `None` (each file's pinned upstream URL). With a
+    /// mirror, the public upstream is never contacted (FR-018).
+    pub fn models_mirror() -> Option<String> {
+        std::env::var(MODELS_MIRROR_ENV)
+            .ok()
+            .or_else(|| {
+                crate::storage::NativeConfigDb::open_default()
+                    .ok()
+                    .and_then(|db| db.get_setting(MODELS_MIRROR_SETTING).ok().flatten())
+            })
+            .map(|m| m.trim().trim_end_matches('/').to_string())
+            .filter(|m| !m.is_empty())
+    }
+
+    /// Download URL of `file` for the given mirror: `<mirror>/<file_name>`, or the pinned
+    /// upstream URL without a mirror. The checksum is the catalog's either way.
+    pub fn source_url(file: &ModelFile, mirror: Option<&str>) -> String {
+        match mirror {
+            Some(base) => format!("{}/{}", base.trim_end_matches('/'), file.file_name),
+            None => file.url.to_string(),
+        }
+    }
+
+    /// Checks every file of an installed model against its catalog SHA-256, so files placed by
+    /// hand (or by IT) are only loaded when they are the verified ones (FR-014). The result is
+    /// cached per file, size and modification time for the life of the process.
+    pub fn verify_installed(spec: &OnnxModelSpec) -> Result<(), String> {
+        if !Self::is_installed(spec) {
+            return Err(format!("'{}' is not installed in {}", spec.id, get_default_models_dir().display()));
+        }
+        static VERIFIED: std::sync::OnceLock<std::sync::Mutex<std::collections::HashSet<(PathBuf, u64, std::time::SystemTime)>>> =
+            std::sync::OnceLock::new();
+        let verified = VERIFIED.get_or_init(Default::default);
+        for file in spec.files {
+            let path = Self::file_path(file);
+            let meta = std::fs::metadata(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            let stamp = (path.clone(), meta.len(), meta.modified().unwrap_or(std::time::UNIX_EPOCH));
+            if verified.lock().map(|v| v.contains(&stamp)).unwrap_or(false) {
+                continue;
+            }
+            Self::check_sha256(&path, file.sha256)?;
+            if let Ok(mut v) = verified.lock() {
+                v.insert(stamp);
+            }
+        }
+        Ok(())
+    }
+
+    /// Refuses a file whose SHA-256 is not `expected` (an empty `expected` accepts any file).
+    pub fn check_sha256(path: &Path, expected: &str) -> Result<(), String> {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        let mut reader = std::fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        std::io::copy(&mut reader, &mut hasher).map_err(|e| format!("{}: {e}", path.display()))?;
+        let digest = format!("{:x}", hasher.finalize());
+        if !expected.is_empty() && !digest.eq_ignore_ascii_case(expected) {
+            return Err(format!(
+                "{} does not match the verified file: SHA-256 {} instead of {}",
+                path.display(),
+                digest,
+                expected
+            ));
+        }
+        Ok(())
+    }
+
     /// Downloads every file of a model with streaming progress, SHA-256 verification and
     /// graceful cancellation. Files already present with the exact size are kept.
     /// Each file is written to a temporary path and atomically renamed only after its hash matches.
@@ -681,6 +830,7 @@ impl OnnxModelManager {
 
         let total_bytes = spec.size_bytes;
         let mut done_bytes: u64 = 0;
+        let mirror = Self::models_mirror();
 
         for file in spec.files {
             if Self::file_matches(file) {
@@ -690,7 +840,8 @@ impl OnnxModelManager {
                 }
                 continue;
             }
-            done_bytes += Self::download_file(&client, file, done_bytes, total_bytes, &progress_tx, &cancel_rx).await?;
+            let url = Self::source_url(file, mirror.as_deref());
+            done_bytes += Self::download_file(&client, file, &url, done_bytes, total_bytes, &progress_tx, &cancel_rx).await?;
         }
 
         Ok(Self::model_path(spec))
@@ -699,6 +850,7 @@ impl OnnxModelManager {
     async fn download_file(
         client: &reqwest::Client,
         file: &ModelFile,
+        url: &str,
         offset: u64,
         total_bytes: u64,
         progress_tx: &Option<tokio::sync::mpsc::UnboundedSender<(u64, u64)>>,
@@ -718,12 +870,12 @@ impl OnnxModelManager {
         ));
 
         let mut response = client
-            .get(file.url)
+            .get(url)
             .send()
             .await
-            .map_err(|e| format!("Failed to connect to model source {}: {}", file.url, e))?;
+            .map_err(|e| format!("Failed to connect to model source {}: {}", url, e))?;
         if !response.status().is_success() {
-            return Err(format!("Model repository returned HTTP status {}: {}", response.status(), file.url));
+            return Err(format!("Model repository returned HTTP status {}: {}", response.status(), url));
         }
 
         let mut tmp_guard = PartialDownloadGuard::new(&tmp_file);
@@ -816,11 +968,11 @@ mod tests {
     #[test]
     fn test_catalog_integrity() {
         let catalog = OnnxModelManager::catalog();
-        assert_eq!(catalog.len(), 11);
+        assert_eq!(catalog.len(), 14);
         for id in [
             "gemma-4-compact", "gemma-4-12b", "gemma-4-27b", "gemma-4-32b", "laya-int8",
             "mobilenetv4-rvl-cdip", "layoutlmv3-int8", "clip-vit-int8", "bge-small-onnx",
-            "mmarco-reranker", "bge-reranker-v2-m3",
+            "mmarco-reranker", "bge-reranker-v2-m3", "multilingual-e5-small", "multilingual-e5-base", "bge-m3",
         ] {
             assert!(catalog.iter().any(|m| m.id == id), "missing {id}");
         }
@@ -861,8 +1013,8 @@ mod tests {
     #[test]
     fn test_inspect_store_does_not_panic() {
         let summary = OnnxModelManager::inspect_store();
-        assert_eq!(summary.total_count, 11);
-        assert_eq!(summary.models.len(), 11);
+        assert_eq!(summary.total_count, 14);
+        assert_eq!(summary.models.len(), 14);
     }
 
     #[test]
@@ -908,6 +1060,27 @@ mod tests {
         assert!(info.eta_seconds.is_some());
         assert_eq!(info.formatted_speed(), "47.7 MB/s");
         assert_eq!(info.formatted_eta(), "10s");
+    }
+
+    #[test]
+    fn test_mirror_replaces_the_upstream_host() {
+        let spec = OnnxModelManager::find_spec("multilingual-e5-small").unwrap();
+        let file = &spec.files[0];
+        assert_eq!(OnnxModelManager::source_url(file, None), file.url);
+        let mirrored = OnnxModelManager::source_url(file, Some("https://models.example.internal/actx/"));
+        assert_eq!(mirrored, format!("https://models.example.internal/actx/{}", file.file_name));
+        assert!(!mirrored.contains("huggingface"));
+    }
+
+    #[test]
+    fn test_file_with_another_checksum_is_refused() {
+        let path = std::env::temp_dir().join(format!("actx_sha_check_{}.bin", std::process::id()));
+        std::fs::write(&path, b"abc").unwrap();
+        let abc = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+        assert!(OnnxModelManager::check_sha256(&path, abc).is_ok());
+        let err = OnnxModelManager::check_sha256(&path, &"0".repeat(64)).unwrap_err();
+        assert!(err.contains("does not match the verified file"), "{err}");
+        let _ = std::fs::remove_file(&path);
     }
 
     /// Live verification of every downloadable catalog file (ADR-118 / ADR-130).

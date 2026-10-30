@@ -52,7 +52,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
             force: args.force,
             target_folder: fld.map(|s| s.to_string()),
             verbose: true,
-            model: args.model.clone(),
+            embedding_model: None,
         };
         match orchestrator.run(&options).await {
             Ok(res) => {
@@ -91,7 +91,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
             force: args.force,
             target_folder: fld.map(|s| s.to_string()),
             verbose: true,
-            model: args.model.clone(),
+            embedding_model: None,
         };
         match orchestrator.run(&options).await {
             Ok(res) => {
@@ -163,7 +163,7 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                     force: *force,
                     target_folder: fld.map(|s| s.to_string()),
                     verbose: true,
-                    model: args.model.clone(),
+                    embedding_model: None,
                 };
                 match orchestrator.run(&options).await {
                     Ok(res) => {
@@ -196,6 +196,9 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                 println!("Starting IDE Stdio JSON-RPC 2.0 bridge server...");
                 // Future RPC bridge runner
                 return Ok(());
+            }
+            CliCommand::Embedding { model, yes } => {
+                std::process::exit(handle_embedding(model.as_deref(), *yes));
             }
             CliCommand::Download { tier, force, check } => {
                 handle_download(tier.as_deref(), *force, *check).await;
@@ -619,8 +622,12 @@ pub async fn handle_download(tier_opt: Option<&str>, force: bool, check: bool) {
     match download_task.await {
         Ok(Ok(dest)) => {
             println!("\n\n✔ Download complete! Successfully verified and installed at: {}", dest.display());
-            println!("🤖 Activate in interactive session: /model {}", target_spec.id);
-            println!("⚡ Run one-shot query: actx \"your query\" --model {}", target_spec.id);
+            if target_spec.category == any_context_core_rs::ingestion::OnnxModelCategory::Embedding {
+                println!("🧭 Use it for indexing: actx embedding {} --yes (or /embedding {} --yes)", target_spec.id, target_spec.id);
+            } else {
+                println!("🤖 Activate in interactive session: /model {}", target_spec.id);
+                println!("⚡ Run one-shot query: actx \"your query\" --model {}", target_spec.id);
+            }
         }
         Ok(Err(e)) => {
             eprintln!("\n\n❌ Download failed: {}", e);
@@ -690,13 +697,29 @@ fn sync_notice_lines(res: &any_context_core_rs::ingestion::SyncResult) -> Vec<St
     lines
 }
 
+/// `actx embedding [id] [--yes]`: exit code 0 when shown or switched, 1 for an unknown model or
+/// a failed save, 2 when a switch was requested without `--yes`.
+fn handle_embedding(model: Option<&str>, yes: bool) -> i32 {
+    let mut args: Vec<&str> = model.into_iter().collect();
+    if yes {
+        args.push("--yes");
+    }
+    let result = any_context_core_rs::commands::CommandEngine::embedding_command(&args);
+    println!("{}", result.message);
+    match (result.success, model) {
+        (true, _) => 0,
+        (false, Some(id)) if !yes && any_context_core_rs::ingestion::find_embedding_model(id).is_some_and(|s| !s.is_mock()) => 2,
+        _ => 1,
+    }
+}
+
 fn print_sync_notices(res: &any_context_core_rs::ingestion::SyncResult) {
     for line in sync_notice_lines(res) {
         println!("{line}");
     }
 }
 
-/// Embeds AnyContext's own documentation (`Global`) with the default embedding target after a
+/// Embeds AnyContext's own documentation (`Global`) with the active embedding model after a
 /// sync pass, so it is matched by meaning (BUG-019). Skipped when the pass was cancelled or its
 /// provider failed; a failure leaves it keyword-only until the next sync.
 async fn refresh_global_knowledge(res: &any_context_core_rs::ingestion::SyncResult) {
@@ -706,9 +729,9 @@ async fn refresh_global_knowledge(res: &any_context_core_rs::ingestion::SyncResu
     let Ok(db) = any_context_core_rs::storage::NativeConfigDb::open_default() else { return };
     let lance_path = any_context_core_rs::storage::get_default_lancedb_path();
     let Ok(lance_store) = any_context_core_rs::storage::NativeLanceStore::open(&lance_path) else { return };
-    let (Some(provider), target) = any_context_core_rs::ingestion::resolve_embedding_provider(&db, None, "Global") else {
-        return;
-    };
+    let Ok((spec, _)) = any_context_core_rs::ingestion::active_embedding_model(&db, None) else { return };
+    let Ok(provider) = any_context_core_rs::ingestion::build_embedding_provider(&db, spec) else { return };
+    let target = spec.target();
     match crate::engine::refresh_global_knowledge_vectors(&db, &lance_store, provider, &target).await {
         Ok(true) => println!("✔ AnyContext documentation embedded with {}.", target.key()),
         Ok(false) => {}

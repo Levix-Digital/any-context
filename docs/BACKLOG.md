@@ -337,13 +337,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 7, Visual page retrieval (audit P10). Only visually rich pages (charts, diagrams, drawing sheets, handwritten forms) get multi-vector page-image embeddings (ColPali family), per profile via ONNX, chosen by benchmark and permissive license, stored at full size. Off on light profiles. Retrieval use belongs to the retrieval batch.
 
-### FEAT-067: [models] Local multilingual ONNX embedding models per profile as the default
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions. The default embedding model is local, multilingual and runs via ONNX, varying by profile; permissive candidates: multilingual-e5-small/base, BGE-M3, Qwen3-Embedding-0.6B. Cloud providers only by explicit choice.
-
 ### FEAT-068: [storage] Learned sparse vectors in the lexical index
 - **Priority**: medium
 - **Status**: open
@@ -1185,27 +1178,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
 - **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 7, Decisions. Metadata (source, location, parent, hashes, dates) lives in columns and is never embedded. The embedded header is only document title + section path, weighted lower than the body in the lexical index. The envelope (first-sentence summary + 7 keywords by frequency) and the `// Context:` breadcrumb are removed. Acceptance: the English and Portuguese stop-word list goes away (ingestion/enricher.rs:140).
-
-### IMP-027: [ingestion] Embedding model independent of the chat model, target on each chunk
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions, and section 7, Decisions. The embedding model is defined by the model kit and changeable by the user, no longer derived from the chat model; each chunk records its embedding_target (provider, model, dimension). Continues the M1 work on branch feat/imp-004-embedding-model. Supersedes FEAT-005.
-
-### IMP-028: [ingestion] Embedding never switches model silently; OpenAI and mock fallbacks removed
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions. If the chosen model fails, the files fail, the user is told and the next sync tries again. The fallback to OpenAI and the offline mock (deterministic pseudo-vectors, ingestion/orchestrator.rs:770 and 1007) end.
-
-### IMP-029: [ingestion] Query and document prefixes per model from the catalog
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions. The catalog declares each model's query and document prefixes and the pipeline applies them at ingestion and at query time (e.g. gemini-embedding-2, e5). Supersedes IMP-014.
 
 ### IMP-030: [ingestion] Embedding batches sized by tokens and API limits, controlled parallelism
 - **Priority**: medium
@@ -2180,3 +2152,35 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: imp_065_retrieval_benchmark
 - **Closed**: 2026-10-25, PR #382
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 10, History and evaluation ("in development, the test corpus runs on every code change"). The R1 retrieval items (IMP-040 to IMP-046) set defaults that the design says are tuned by the evaluation set, but the per-workspace set (FEAT-073, FEAT-106) only arrives in v1.1.0. Before IMP-040, a development-only benchmark: a fixed versioned corpus (starting with the fictitious CMR) and a hand-labeled question file (expected documents and passages, plus negative questions that must get the nothing-found answer); a runner over the real retrieval pipeline that reports HitRate@1/3/5/10, MRR@10, NDCG@10, the nothing-found rate and retrieval latency (mean and p95); results saved as JSON in the repository and compared with a previous run, so each retrieval PR shows its effect. Runs locally and in CI when the retrieval code changes, with a regression threshold. Out of scope: user-facing commands, synthetic question generation (FEAT-073) and answer evaluation (FEAT-102).
+
+### FEAT-067: [models] Local multilingual ONNX embedding models per profile as the default
+- **Priority**: medium
+- **Status**: done
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: feat_002_local_embedding
+- **Closed**: 2026-10-30, plan feat_002_local_embedding
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions. The default embedding model is local, multilingual and runs via ONNX, varying by profile; permissive candidates: multilingual-e5-small/base, BGE-M3, Qwen3-Embedding-0.6B. Cloud providers only by explicit choice.
+
+### IMP-027: [ingestion] Embedding model independent of the chat model, target on each chunk
+- **Priority**: medium
+- **Status**: done
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: feat_002_local_embedding
+- **Closed**: 2026-10-30, plan feat_002_local_embedding
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions, and section 7, Decisions. The embedding model is defined by the model kit and changeable by the user, no longer derived from the chat model; each chunk records its embedding_target (provider, model, dimension). Continues the M1 work on branch feat/imp-004-embedding-model. Supersedes FEAT-005.
+
+### IMP-028: [ingestion] Embedding never switches model silently; OpenAI and mock fallbacks removed
+- **Priority**: medium
+- **Status**: done
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: feat_002_local_embedding
+- **Closed**: 2026-10-30, plan feat_002_local_embedding
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions. If the chosen model fails, the files fail, the user is told and the next sync tries again. The fallback to OpenAI and the offline mock (deterministic pseudo-vectors, ingestion/orchestrator.rs:770 and 1007) end.
+
+### IMP-029: [ingestion] Query and document prefixes per model from the catalog
+- **Priority**: medium
+- **Status**: done
+- **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
+- **Plan**: feat_002_local_embedding
+- **Closed**: 2026-10-30, plan feat_002_local_embedding
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 8, Decisions. The catalog declares each model's query and document prefixes and the pipeline applies them at ingestion and at query time (e.g. gemini-embedding-2, e5). Supersedes IMP-014.

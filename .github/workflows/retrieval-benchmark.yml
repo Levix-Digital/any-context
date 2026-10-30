@@ -1,7 +1,8 @@
 # Development retrieval benchmark (IMP-065, ADR-0153).
 # Indexes the fixed corpus in benchmarks/retrieval and fails when MRR@10 or HitRate@5 drops more
-# than 0.02 below the committed baseline. Lexical + reranker only until the local embedding model
-# (FEAT-067) turns dense retrieval on in CI.
+# than 0.02 below the committed baseline. Two configurations: lexical + reranker, and dense with the
+# reference local embedding model (FEAT-067, ADR-0154) + reranker. A manual run can benchmark another
+# embedding model of the catalog.
 name: Retrieval Benchmark
 
 on:
@@ -29,6 +30,11 @@ on:
       - "benchmarks/retrieval/**"
       - ".github/workflows/retrieval-benchmark.yml"
   workflow_dispatch:
+    inputs:
+      embedding:
+        description: "Embedding model of the dense run (catalog id, e.g. multilingual-e5-small, bge-m3)"
+        required: false
+        default: ""
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
@@ -39,8 +45,17 @@ permissions:
 
 jobs:
   benchmark:
-    name: Retrieval benchmark (lexical + reranker)
+    name: Retrieval benchmark (${{ matrix.name }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: lexical + reranker
+            embedding: ""
+          # Reference model: the default of the AirGappedPower profile.
+          - name: dense + reranker
+            embedding: ${{ inputs.embedding || 'bge-m3' }}
     env:
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: "sccache"
@@ -74,22 +89,37 @@ jobs:
           bash scripts/fetch_onnxruntime.sh .ort
           echo "ORT_DYLIB_PATH=$PWD/.ort/libonnxruntime.so" >> "$GITHUB_ENV"
 
-      # The verified reranker download (about 136 MB) is cached by the catalog file that pins it.
-      - name: Reranker Model Cache
+      # The verified downloads (reranker about 136 MB, embedding model 135 to 585 MB) are cached by
+      # the catalog file that pins them.
+      - name: Model Cache
         uses: actions/cache@v4
         with:
           path: .models
-          key: reranker-${{ hashFiles('crates/any-context-core-rs/src/ingestion/model_manager.rs') }}
+          key: models-${{ matrix.embedding || 'lexical' }}-${{ hashFiles('crates/any-context-core-rs/src/ingestion/model_manager.rs') }}
 
       - name: Validate Labels
         run: cargo run -p actx-bench --release -- retrieval validate
 
+      # Each configuration is compared with its own baseline. A model without a committed baseline
+      # (a manual run of another candidate) only reports its result.
       - name: Run Benchmark
-        run: >
-          cargo run -p actx-bench --release -- retrieval run
-          --compare benchmarks/retrieval/baseline.lexical-rerank.json
-          --check-determinism
-          --summary "$GITHUB_STEP_SUMMARY"
+        shell: bash
+        env:
+          EMBEDDING: ${{ matrix.embedding }}
+        run: |
+          args=(retrieval run --check-determinism --summary "$GITHUB_STEP_SUMMARY")
+          if [ -n "$EMBEDDING" ]; then
+            args+=(--embedding "local/$EMBEDDING")
+            baseline="benchmarks/retrieval/baseline.dense-local-$EMBEDDING-rerank.json"
+          else
+            baseline="benchmarks/retrieval/baseline.lexical-rerank.json"
+          fi
+          if [ -f "$baseline" ]; then
+            args+=(--compare "$baseline")
+          else
+            echo "::notice::No baseline $baseline: the result is reported, not compared."
+          fi
+          cargo run -p actx-bench --release -- "${args[@]}"
 
       # The full result on one log line, so a new baseline can be taken from a CI run.
       - name: Show Result
@@ -105,6 +135,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: retrieval-benchmark-result
+          name: retrieval-benchmark-result-${{ matrix.embedding || 'lexical' }}
           path: benchmarks/retrieval/results/*.json
           if-no-files-found: ignore

@@ -99,6 +99,9 @@ impl CommandEngine {
             "rerank" | "reranker" => {
                 Self::execute_rerank(args, ctx)
             }
+            "embedding" | "embeddings" | "embed" => {
+                Self::embedding_command(args)
+            }
             "profile" | "profiles" => {
                 Self::execute_profile(args, ctx)
             }
@@ -668,7 +671,7 @@ impl CommandEngine {
                                 force,
                                 target_folder: tf_owned,
                                 verbose: false,
-                                model: None,
+                                embedding_model: None,
                             };
                             let _ = orchestrator.run_sync(&opts);
                         }
@@ -1741,6 +1744,108 @@ impl CommandEngine {
         CommandResult::success(out)
     }
 
+    /// `/embedding [id] [--yes]`: shows the embedding model in use and the catalog, or switches
+    /// to another model after an explicit confirmation (ADR-0154). The chat model never changes
+    /// it.
+    pub fn embedding_command(args: &[&str]) -> CommandResult {
+        let db = match NativeConfigDb::open_default() {
+            Ok(db) => db,
+            Err(e) => return CommandResult::error(format!("❌ Settings could not be opened: {e}")),
+        };
+        Self::embedding_command_with(&db, args)
+    }
+
+    /// `/embedding` against a given settings database.
+    pub fn embedding_command_with(db: &NativeConfigDb, args: &[&str]) -> CommandResult {
+        let confirmed = args.iter().any(|a| matches!(a.trim(), "--yes" | "-y" | "yes" | "confirm"));
+        let requested = args.iter().map(|a| a.trim()).find(|a| !a.is_empty() && !a.starts_with('-') && !matches!(*a, "yes" | "confirm"));
+        match requested {
+            None => Self::embedding_overview(db),
+            Some(id) => Self::switch_embedding(db, id, confirmed),
+        }
+    }
+
+    fn embedding_overview(db: &NativeConfigDb) -> CommandResult {
+        use crate::ingestion::{active_embedding_model, selectable_models, EmbeddingRuntime, OnnxModelManager};
+        let mut out = String::from("🧭 Embedding model\n");
+        match active_embedding_model(db, None) {
+            Ok((spec, source)) => {
+                let runtime = match spec.runtime {
+                    EmbeddingRuntime::Local => "local (ONNX, nothing leaves this machine)".to_string(),
+                    EmbeddingRuntime::Cloud(p) => format!("cloud ({p}: document text is sent to the provider)"),
+                    EmbeddingRuntime::Mock => "mock".to_string(),
+                };
+                out.push_str(&format!(
+                    "  • In use: `{}`, {} dimensions, {}\n  • Chosen by: {}\n  • Prefixes: {}\n  • Vector space: `{}`\n",
+                    spec.id,
+                    spec.dimension,
+                    runtime,
+                    source.describe(),
+                    if spec.prefix_rev > 0 { "on" } else { "none" },
+                    spec.target().key()
+                ));
+            }
+            Err(e) => out.push_str(&format!("  ⚠️ {e}\n")),
+        }
+        out.push_str("\nModels you can choose:\n");
+        for m in selectable_models() {
+            let detail = match m.runtime {
+                EmbeddingRuntime::Local => {
+                    let files = OnnxModelManager::find_spec(m.id);
+                    let size = files.map(|f| f.size_bytes as f64 / (1024.0 * 1024.0)).unwrap_or(0.0);
+                    let state = if files.map(OnnxModelManager::is_installed).unwrap_or(false) { "installed" } else { "downloaded on first sync" };
+                    format!("local, ~{size:.0} MB, {state}")
+                }
+                EmbeddingRuntime::Cloud(p) => format!("cloud, {p}"),
+                EmbeddingRuntime::Mock => continue,
+            };
+            out.push_str(&format!("  • `{}` — {} ({} dimensions, {}, {})\n", m.id, m.name, m.dimension, m.license, detail));
+        }
+        out.push_str("\nSwitch with `/embedding <id>`; the chat model (`/model`) never changes it.");
+        CommandResult::success(out)
+    }
+
+    fn switch_embedding(db: &NativeConfigDb, id: &str, confirmed: bool) -> CommandResult {
+        use crate::ingestion::{
+            active_embedding_model, find_embedding_model, is_model_allowed, workspaces_reindexed_by, EmbeddingRuntime,
+            EMBEDDING_MODEL_SETTING,
+        };
+        let Some(spec) = find_embedding_model(id).filter(|s| !s.is_mock()) else {
+            let ids: Vec<&str> = crate::ingestion::selectable_models().map(|m| m.id).collect();
+            return CommandResult::error(format!("❌ Unknown embedding model `{id}`. Choose one of: {}.", ids.join(", ")));
+        };
+        if let Err(reason) = is_model_allowed(spec) {
+            return CommandResult::error(format!("❌ `{}` is not allowed: {reason}", spec.id));
+        }
+        if let Ok((current, crate::ingestion::EmbeddingModelSource::Setting)) = active_embedding_model(db, None) {
+            if current.id == spec.id {
+                return CommandResult::success(format!("✔ `{}` is already the embedding model.", spec.id));
+            }
+        }
+        let affected = workspaces_reindexed_by(db, &spec.target());
+        let mut notice = String::new();
+        if affected.is_empty() {
+            notice.push_str("No indexed workspace needs a reindex.");
+        } else {
+            let list: Vec<String> = affected.iter().map(|(ws, from)| format!("{ws} (now `{from}`)")).collect();
+            notice.push_str(&format!("Workspaces reindexed on their next sync: {}.", list.join(", ")));
+        }
+        if let EmbeddingRuntime::Cloud(provider) = spec.runtime {
+            notice.push_str(&format!("\n⚠️ Document text will be sent to {provider} to build the index."));
+        }
+        if !confirmed {
+            return CommandResult::error(format!(
+                "Switching the embedding model to `{}` ({} dimensions).\n{notice}\nConfirm with `/embedding {} --yes`.",
+                spec.id, spec.dimension, spec.id
+            ));
+        }
+        let _ = db.set_setting(crate::ingestion::embedding::EMBEDDING_ADOPTION_SETTING, &chrono::Utc::now().to_rfc3339());
+        if let Err(e) = db.set_setting(EMBEDDING_MODEL_SETTING, spec.id) {
+            return CommandResult::error(format!("❌ The embedding model could not be saved: {e}"));
+        }
+        CommandResult::success(format!("✔ Embedding model set to `{}`.\n{notice}", spec.id))
+    }
+
     fn execute_rerank(args: &[&str], ctx: &ExecutionContext) -> CommandResult {
         use crate::ingestion::OnnxModelManager;
 
@@ -2121,6 +2226,13 @@ impl CommandEngine {
             .and_then(|d| d.list_workspace_names())
             .map(|w| w.len())
             .unwrap_or(1);
+        let embedding_line = match NativeConfigDb::open_default()
+            .map_err(|e| e.to_string())
+            .and_then(|d| crate::ingestion::active_embedding_model(&d, None).map_err(|e| e.to_string()))
+        {
+            Ok((spec, source)) => format!("{} ({})", spec.target().key(), source.describe()),
+            Err(e) => format!("unavailable ({e})"),
+        };
 
         CommandResult::success(format!(
             "AnyContext Diagnostics Report (v{}):\n\
@@ -2132,6 +2244,7 @@ impl CommandEngine {
              Grounding:  {}\n\
              Search:     {}\n\
              Web Search: {}\n\
+             Embedding:  {}\n\
              Database:   {} (Connected)\n\
              Vectors:    {} (LanceDB Arrow Ready)\n\
              Status:     Healthy & Operational",
@@ -2144,6 +2257,7 @@ impl CommandEngine {
             ctx.grounding_mode.to_uppercase(),
             ctx.search_mode.to_uppercase(),
             if ctx.web_search_enabled { "ON" } else { "OFF" },
+            embedding_line,
             db_path.display(),
             lance_path.display()
         ))

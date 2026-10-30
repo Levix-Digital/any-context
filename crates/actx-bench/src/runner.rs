@@ -10,8 +10,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use any_context_core_rs::ingestion::{
-    resolve_embedding_provider, EmbeddingTarget, NativeSyncOrchestrator, OnnxModelManager, SyncOptions,
-    DEFAULT_RERANKER_ID,
+    find_embedding_model, resolve_query_embedding, EmbeddingModelSpec, EmbeddingTarget, NativeSyncOrchestrator, OnnxModelManager,
+    SyncOptions, DEFAULT_RERANKER_ID,
 };
 use any_context_core_rs::retrieval::{fast_request, HybridSearchRequest, HybridSearchResult, NativeHybridPipeline};
 use any_context_core_rs::storage::{NativeConfigDb, NativeLanceStore};
@@ -106,18 +106,19 @@ pub async fn run(options: &RunOptions) -> Result<RunResult, RunError> {
     db.create_workspace(WORKSPACE, Some("Retrieval benchmark")).map_err(|e| format!("workspace: {e}"))?;
     db.add_workspace_folder(WORKSPACE, &corpus.root().to_string_lossy()).map_err(|e| format!("workspace folder: {e}"))?;
 
-    let target = expected_target(options.embedding.as_deref())?;
-    index(&db, &lance, &corpus, &target).await?;
+    let spec = expected_model(options.embedding.as_deref())?;
+    let target = spec.target();
+    index(&db, &lance, &corpus, spec).await?;
     check_indexed_passages(&lance, &corpus, &file).await?;
 
     let reranker = load_reranker().await?;
     let mut pipeline = NativeHybridPipeline::new(lance.clone(), None);
-    let provider = if target.is_mock() {
-        None
-    } else {
-        resolve_embedding_provider(&db, Some(&target.key()), WORKSPACE).0
-    };
-    pipeline.set_query_embedding(provider, &target);
+    // The question side resolves exactly as the product does, from the recorded target.
+    let query = resolve_query_embedding(&db, WORKSPACE);
+    if let Some(ref cause) = query.unavailable {
+        return Err(RunError::Environment(format!("query embedding unavailable: {cause}")));
+    }
+    pipeline.set_query_embedding(&query);
     pipeline.set_reranker(Some(reranker));
     pipeline.set_rerank_mode("on");
 
@@ -168,28 +169,33 @@ pub fn config_id(target: &EmbeddingTarget) -> String {
     }
 }
 
-fn expected_target(embedding: Option<&str>) -> Result<EmbeddingTarget, String> {
-    match embedding {
-        None => Ok(EmbeddingTarget::new("mock", "mock-embed")),
-        Some(key) => {
-            let target = EmbeddingTarget::parse(key)
-                .ok_or_else(|| format!("--embedding '{key}' is not <provider>/<model>"))?;
-            if target.is_mock() {
-                return Err("--embedding mock is the default run; leave the option out".into());
-            }
-            Ok(target)
-        }
+/// The embedding model of a run: the mock (no dense) by default, or a catalog model given by id,
+/// optionally as `<provider>/<id>` (e.g. `local/multilingual-e5-small`, `gemini/gemini-embedding-2`).
+fn expected_model(embedding: Option<&str>) -> Result<&'static EmbeddingModelSpec, String> {
+    let Some(key) = embedding else {
+        return find_embedding_model("mock").ok_or_else(|| "the mock model is missing from the catalog".to_string());
+    };
+    let id = key.trim().split_once('/').map(|(_, id)| id).unwrap_or(key.trim());
+    let id = id.split('@').next().unwrap_or(id);
+    let spec = find_embedding_model(id).ok_or_else(|| {
+        let ids: Vec<&str> = any_context_core_rs::ingestion::selectable_models().map(|m| m.id).collect();
+        format!("--embedding '{key}' is not in the embedding catalog ({})", ids.join(", "))
+    })?;
+    if spec.is_mock() {
+        return Err("--embedding mock is the default run; leave the option out".into());
     }
+    Ok(spec)
 }
 
-async fn index(db: &Arc<NativeConfigDb>, lance: &Arc<NativeLanceStore>, corpus: &Corpus, target: &EmbeddingTarget) -> Result<(), String> {
+async fn index(db: &Arc<NativeConfigDb>, lance: &Arc<NativeLanceStore>, corpus: &Corpus, spec: &EmbeddingModelSpec) -> Result<(), String> {
+    let target = spec.target();
     let orchestrator = NativeSyncOrchestrator::new(lance.clone(), db.clone());
     let options = SyncOptions {
         workspace: WORKSPACE.to_string(),
         force: true,
         target_folder: None,
         verbose: false,
-        model: Some(if target.is_mock() { "mock".to_string() } else { target.key() }),
+        embedding_model: Some(spec.id.to_string()),
     };
     let started = Instant::now();
     let result = orchestrator.run(&options).await?;
@@ -199,7 +205,7 @@ async fn index(db: &Arc<NativeConfigDb>, lance: &Arc<NativeLanceStore>, corpus: 
     if result.indexed_files != corpus.len() {
         return Err(format!("indexing covered {} of {} corpus files", result.indexed_files, corpus.len()));
     }
-    // The core falls back to another provider when a key is missing (IMP-028); the benchmark never does.
+    // The core never switches model (IMP-028); this guards the benchmark's own configuration.
     let recorded = db.get_workspace_embedding_target(WORKSPACE).ok().flatten().flatten();
     if recorded.as_deref() != Some(target.key().as_str()) {
         return Err(format!(
@@ -344,11 +350,15 @@ mod tests {
 
     #[test]
     fn config_ids_name_the_retrievers() {
-        assert_eq!(config_id(&EmbeddingTarget::new("mock", "mock-embed")), "lexical-rerank");
-        assert_eq!(config_id(&EmbeddingTarget::new("gemini", "gemini-embedding-2")), "dense-gemini-gemini-embedding-2-rerank");
-        assert!(expected_target(Some("gemini")).is_err());
-        assert!(expected_target(Some("mock/mock-embed")).is_err());
-        assert!(expected_target(None).unwrap().is_mock());
+        assert_eq!(config_id(&expected_model(None).unwrap().target()), "lexical-rerank");
+        let gemini = expected_model(Some("gemini/gemini-embedding-2")).unwrap();
+        assert_eq!(config_id(&gemini.target()), "dense-gemini-gemini-embedding-2-rerank");
+        let e5 = expected_model(Some("local/multilingual-e5-small")).unwrap();
+        assert_eq!(config_id(&e5.target()), "dense-local-multilingual-e5-small-rerank");
+        assert_eq!(expected_model(Some("multilingual-e5-small")).unwrap(), e5);
+        assert!(expected_model(Some("gemini")).is_err());
+        assert!(expected_model(Some("mock/mock-embed")).is_err());
+        assert!(expected_model(None).unwrap().is_mock());
     }
 
     #[test]

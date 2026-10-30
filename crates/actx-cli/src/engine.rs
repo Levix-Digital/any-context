@@ -135,36 +135,45 @@ pub fn resolve_lm_provider(
     Ok(ResolvedLm { provider, model: model_name, configured, notice })
 }
 
-/// Query embedding of a workspace: the provider and the target whose vector space it uses.
+/// Query embedding of a workspace: provider, target and prefix of its vector space, plus whether
+/// `Global` shares that space.
 #[derive(Clone)]
 pub struct QueryEmbedding {
-    pub provider: Option<Arc<dyn LmProvider>>,
-    pub target: EmbeddingTarget,
-    /// `Global` was embedded with `target`, so its rows can take part in dense search.
+    pub query: any_context_core_rs::ingestion::QueryEmbedding,
+    /// `Global` was embedded with the query's target, so its rows can take part in dense search.
     pub global_dense: bool,
 }
 
 impl QueryEmbedding {
-    /// Sets a pipeline's query embedding (BUG-019): the mock target is searched by BM25 only, and
-    /// `Global` rows join dense search only when they share the target's vector space.
+    /// Sets a pipeline's query embedding (BUG-019, ADR-0154): a mock index or a model that cannot
+    /// run is searched by BM25 only, and `Global` rows join dense search only when they share the
+    /// target's vector space.
     pub fn apply(&self, pipeline: &mut any_context_core_rs::retrieval::NativeHybridPipeline) {
-        pipeline.set_query_embedding(self.provider.clone(), &self.target);
+        pipeline.set_query_embedding(&self.query);
         pipeline.set_global_dense(self.global_dense);
+    }
+
+    pub fn target(&self) -> &EmbeddingTarget {
+        &self.query.target
     }
 }
 
-/// Query embedding: the target recorded by the last completed sync, or the resolution the sync
-/// worker uses for chunk vectors (ADR-0132, ADR-0138). No provider on the mock target.
+/// Query embedding: the target recorded by the last completed sync, or the application's
+/// embedding model before the first sync (ADR-0138, ADR-0154). Never another model.
 pub fn resolve_query_embedding(workspace: &str) -> QueryEmbedding {
     match NativeConfigDb::open_default() {
         Ok(db) => {
-            let (provider, target) = any_context_core_rs::ingestion::resolve_query_embedding_provider(&db, workspace);
-            let global_dense = any_context_core_rs::ingestion::global_dense_enabled(&db, &target);
-            QueryEmbedding { provider, target, global_dense }
+            let query = any_context_core_rs::ingestion::resolve_query_embedding(&db, workspace);
+            let global_dense = any_context_core_rs::ingestion::global_dense_enabled(&db, &query.target);
+            QueryEmbedding { query, global_dense }
         }
-        Err(_) => QueryEmbedding {
-            provider: None,
-            target: EmbeddingTarget::new("openai", any_context_core_rs::retrieval::pipeline::DEFAULT_QUERY_EMBEDDING_MODEL),
+        Err(e) => QueryEmbedding {
+            query: any_context_core_rs::ingestion::QueryEmbedding {
+                provider: None,
+                target: EmbeddingTarget::new("none", "settings", 0, 0),
+                spec: None,
+                unavailable: Some(format!("settings could not be opened: {e}")),
+            },
             global_dense: false,
         },
     }
@@ -618,6 +627,7 @@ fn global_knowledge_records() -> Vec<any_context_core_rs::storage::VectorRecord>
                 header_path: Some(header),
                 start_line: None,
                 end_line: None,
+                embedding_target: None,
             });
         }
     }
@@ -637,14 +647,21 @@ pub async fn refresh_global_knowledge_vectors(
     use any_context_core_rs::ingestion::GLOBAL_KNOWLEDGE_TARGET_SETTING;
     let setting = |key: &str| db.get_setting(key).ok().flatten();
     if target.is_mock()
-        || setting(GLOBAL_KNOWLEDGE_TARGET_SETTING).as_deref() == Some(target.key().as_str())
+        || any_context_core_rs::ingestion::global_dense_enabled(db, target)
         || setting("global_knowledge_version").as_deref() != Some(env!("CARGO_PKG_VERSION"))
     {
         return Ok(false);
     }
 
     let mut records = global_knowledge_records();
-    let texts: Vec<String> = records.iter().map(|r| r.text.clone()).collect();
+    let spec = any_context_core_rs::ingestion::spec_for_target(target);
+    let texts: Vec<String> = records
+        .iter()
+        .map(|r| match spec {
+            Some(spec) => any_context_core_rs::ingestion::apply_prefix(spec, target, any_context_core_rs::ingestion::EmbedRole::Document, &r.text),
+            None => r.text.clone(),
+        })
+        .collect();
     let mut vectors = Vec::with_capacity(texts.len());
     for batch in texts.chunks(GLOBAL_EMBED_BATCH) {
         let answer = any_context_core_rs::ingestion::embed_with_retry(&provider, &target.model, batch)
@@ -655,11 +672,17 @@ pub async fn refresh_global_knowledge_vectors(
         }
         vectors.extend(answer);
     }
-    if let Some(v) = vectors.iter().find(|v| v.len() != GLOBAL_VECTOR_DIM) {
-        return Err(format!("embedding size {} does not match the chunk table ({GLOBAL_VECTOR_DIM})", v.len()));
+    if let Some(v) = vectors.iter().find(|v| v.len() != target.dimension || v.len() > GLOBAL_VECTOR_DIM) {
+        return Err(format!(
+            "embedding size {} does not match {} (chunk table holds up to {GLOBAL_VECTOR_DIM})",
+            v.len(),
+            target.key()
+        ));
     }
+    let key = target.key();
     for (record, vector) in records.iter_mut().zip(vectors) {
         record.vector = vector;
+        record.embedding_target = Some(key.clone());
     }
     // `upsert_records` appends, so the placeholders are removed first, once every vector is in
     // hand. If the insert then fails, the next startup bootstrap writes the placeholders again.
@@ -1116,7 +1139,7 @@ mod tests {
     }
 
     fn openai() -> EmbeddingTarget {
-        EmbeddingTarget::new("openai", "text-embedding-3-small")
+        EmbeddingTarget::new("openai", "text-embedding-3-small", 1536, 0)
     }
 
     #[test]
@@ -1174,7 +1197,7 @@ mod tests {
         assert_eq!(refresh_global_knowledge_vectors(&db, &lance_store, provider.clone(), &openai()).await, Ok(false));
         assert_eq!(embedder.calls(), expected_calls);
         // Another target: embedded again.
-        let gemini = EmbeddingTarget::new("gemini", "gemini-embedding-2");
+        let gemini = EmbeddingTarget::new("gemini", "gemini-embedding-2", 1536, 1);
         assert_eq!(refresh_global_knowledge_vectors(&db, &lance_store, provider, &gemini).await, Ok(true));
         assert_eq!(global_target(&db), Some(gemini.key()));
         let _ = std::fs::remove_dir_all(dir);
@@ -1186,7 +1209,7 @@ mod tests {
         let embedder = GlobalEmbedder::new(Ok(vec![0.5; GLOBAL_VECTOR_DIM]));
         let provider: Arc<dyn LmProvider> = embedder.clone();
 
-        let mock = EmbeddingTarget::new("mock", "mock-embed");
+        let mock = EmbeddingTarget::new("mock", "mock-embed", 1536, 0);
         assert_eq!(refresh_global_knowledge_vectors(&db, &lance_store, provider.clone(), &mock).await, Ok(false));
         // Rows of this version not written yet: the bootstrap would overwrite them.
         db.set_setting("global_knowledge_version", "0.0.1").unwrap();

@@ -1,9 +1,11 @@
 //! Automatic model provisioning during install and update (ADR-130, D15).
 //!
-//! Downloads the files a profile needs (today: the cross-encoder re-ranker), verifying
-//! size and SHA-256 before an atomic rename. Failures never abort the installation:
-//! AnyContext keeps working with its RRF fallback and the user can repair later with
-//! `actx download reranker`. Set `ACTX_SKIP_MODEL_DOWNLOAD=1` to skip provisioning.
+//! Downloads the files a profile needs (the cross-encoder re-ranker and the profile's embedding
+//! model), verifying size and SHA-256 before an atomic rename. Failures never abort the
+//! installation: AnyContext keeps working with its RRF fallback, the first sync downloads a
+//! missing embedding model, and the user can repair later with `actx download <model>`. Set
+//! `ACTX_SKIP_MODEL_DOWNLOAD=1` to skip provisioning, or `ACTX_MODELS_MIRROR` to download from a
+//! company server instead of the public source (FEAT-067).
 
 use std::fs::File;
 use std::io::{Read, Write};
@@ -42,16 +44,34 @@ pub fn provisioning_disabled() -> bool {
     std::env::var("ACTX_SKIP_MODEL_DOWNLOAD").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false)
 }
 
+/// Mirror base URL from `ACTX_MODELS_MIRROR`, without a trailing slash.
+pub fn models_mirror() -> Option<String> {
+    std::env::var("ACTX_MODELS_MIRROR")
+        .ok()
+        .map(|m| m.trim().trim_end_matches('/').to_string())
+        .filter(|m| !m.is_empty())
+}
+
+/// Where `spec` is downloaded from: `<mirror>/<file_name>`, or its pinned upstream URL. The
+/// checksum is the catalog's either way.
+pub fn source_url(spec: &ModelDownloadSpec, mirror: Option<&str>) -> String {
+    match mirror {
+        Some(base) => format!("{}/{}", base.trim_end_matches('/'), spec.file_name),
+        None => spec.download_url.to_string(),
+    }
+}
+
 /// Ensures every spec is present under `models_dir`, downloading and verifying missing files.
 pub fn provision_models(models_dir: &Path, specs: &[ModelDownloadSpec], show_progress: bool) -> ProvisionReport {
     let mut report = ProvisionReport::default();
+    let mirror = models_mirror();
     for spec in specs {
         let dest = resolve_model_path(models_dir, spec.file_name);
         if is_present(&dest, spec) {
             report.already_present.push(spec.file_name.to_string());
             continue;
         }
-        match download_verified(spec, &dest, show_progress) {
+        match download_verified(spec, &source_url(spec, mirror.as_deref()), &dest, show_progress) {
             Ok(()) => report.installed.push(spec.file_name.to_string()),
             Err(e) => report.failed.push((spec.file_name.to_string(), e)),
         }
@@ -59,7 +79,7 @@ pub fn provision_models(models_dir: &Path, specs: &[ModelDownloadSpec], show_pro
     report
 }
 
-fn download_verified(spec: &ModelDownloadSpec, dest: &Path, show_progress: bool) -> Result<(), String> {
+fn download_verified(spec: &ModelDownloadSpec, url: &str, dest: &Path, show_progress: bool) -> Result<(), String> {
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent).map_err(|e| format!("cannot create {}: {e}", parent.display()))?;
     }
@@ -68,7 +88,7 @@ fn download_verified(spec: &ModelDownloadSpec, dest: &Path, show_progress: bool)
         dest.file_name().and_then(|n| n.to_str()).unwrap_or("model")
     ));
 
-    let response = ureq::get(spec.download_url)
+    let response = ureq::get(url)
         .set("User-Agent", concat!("AnyContext-Installer/", env!("CARGO_PKG_VERSION")))
         .timeout(std::time::Duration::from_secs(1800))
         .call()
@@ -202,5 +222,15 @@ mod tests {
         let report = provision_models(dir.path(), &[spec], false);
         assert_eq!(report.failed.len(), 1);
         assert!(!resolve_model_path(dir.path(), "fixture/model.onnx").exists());
+    }
+
+    #[test]
+    fn test_mirror_replaces_the_upstream_url() {
+        let spec = crate::hardware::E5_SMALL_FILES[0];
+        assert_eq!(source_url(&spec, None), spec.download_url);
+        assert_eq!(
+            source_url(&spec, Some("https://models.example.internal/actx/")),
+            "https://models.example.internal/actx/multilingual-e5-small/model.onnx"
+        );
     }
 }

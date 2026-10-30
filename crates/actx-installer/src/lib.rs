@@ -702,7 +702,7 @@ mod tests {
         assert_eq!(read_install_profile(dir.path()), Some(hardware::InstallerProfileTier::Lite));
         let tier = resolve_update_profile(dir.path(), None);
         assert_eq!(tier, hardware::InstallerProfileTier::Lite);
-        assert!(tier.auto_provisioned_models().is_empty());
+        assert_eq!(tier.auto_provisioned_models(), &hardware::E5_SMALL_FILES[..]);
     }
 
     use super::*;

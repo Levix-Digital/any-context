@@ -407,6 +407,7 @@ fn test_inspect_transparent_decryption() {
         header_path: None,
         start_line: None,
         end_line: None,
+        embedding_target: None,
     };
 
     lance.upsert_records(vec![rec], Some("workspace_chunks"), Some(1536)).expect("upsert failed in test_inspect_transparent_decryption");
@@ -733,3 +734,69 @@ fn test_rerank_command_execution() {
 
 
 
+
+// `/embedding` (FEAT-067, contracts/embedding-cli.md).
+
+fn embedding_db() -> any_context_core_rs::storage::NativeConfigDb {
+    let db = any_context_core_rs::storage::NativeConfigDb::open_in_memory().unwrap();
+    db.set_workspace_embedding_target("Default", Some("openai/text-embedding-3-small@1536"))
+        .unwrap();
+    db
+}
+
+#[test]
+fn test_embedding_overview_lists_the_catalog_without_the_mock() {
+    let db = embedding_db();
+    let res = CommandEngine::embedding_command_with(&db, &[]);
+    assert!(res.success, "{}", res.message);
+    for id in ["multilingual-e5-small", "multilingual-e5-base", "bge-m3", "text-embedding-3-small"] {
+        assert!(res.message.contains(id), "missing {id}: {}", res.message);
+    }
+    assert!(!res.message.contains("mock-embed"));
+    assert!(res.message.contains("never changes it"));
+}
+
+#[test]
+fn test_embedding_unknown_model_is_refused() {
+    let db = embedding_db();
+    for id in ["qwen3-embedding", "mock"] {
+        let res = CommandEngine::embedding_command_with(&db, &[id, "--yes"]);
+        assert!(!res.success);
+        assert!(res.message.contains("Unknown embedding model"), "{}", res.message);
+    }
+    assert_ne!(db.get_setting("embedding_model").unwrap().as_deref(), Some("mock-embed"));
+}
+
+#[test]
+fn test_embedding_switch_needs_confirmation_and_lists_affected_workspaces() {
+    let db = embedding_db();
+    let preview = CommandEngine::embedding_command_with(&db, &["multilingual-e5-small"]);
+    assert!(!preview.success);
+    assert!(preview.message.contains("Default (now `openai/text-embedding-3-small@1536`)"), "{}", preview.message);
+    assert!(preview.message.contains("--yes"));
+    // The preview keeps the model in use: the existing index was adopted, nothing switched.
+    assert_eq!(db.get_setting("embedding_model").unwrap().as_deref(), Some("text-embedding-3-small"));
+
+    let done = CommandEngine::embedding_command_with(&db, &["multilingual-e5-small", "--yes"]);
+    assert!(done.success, "{}", done.message);
+    assert_eq!(db.get_setting("embedding_model").unwrap().as_deref(), Some("multilingual-e5-small"));
+
+    let again = CommandEngine::embedding_command_with(&db, &["multilingual-e5-small"]);
+    assert!(again.success);
+    assert!(again.message.contains("already"));
+}
+
+#[test]
+fn test_embedding_switch_to_cloud_warns_that_text_leaves() {
+    let db = embedding_db();
+    let preview = CommandEngine::embedding_command_with(&db, &["gemini-embedding-2"]);
+    assert!(preview.message.contains("Document text will be sent to gemini"), "{}", preview.message);
+}
+
+#[test]
+fn test_embedding_switch_back_to_the_recorded_space_reindexes_nothing() {
+    let db = embedding_db();
+    assert!(CommandEngine::embedding_command_with(&db, &["bge-m3", "--yes"]).success);
+    let preview = CommandEngine::embedding_command_with(&db, &["text-embedding-3-small"]);
+    assert!(preview.message.contains("No indexed workspace needs a reindex"), "{}", preview.message);
+}

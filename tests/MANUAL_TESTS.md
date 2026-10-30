@@ -21,16 +21,18 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
-### MT-INST-002: Lite profile installs no local models
+### MT-INST-002: Lite profile installs only the small embedding model
 
 - **Covers**: installer profiles
 - **Prerequisites**: the release's `actx-installer`
 - **Steps**:
   1. Run `actx-installer --preflight-only` and note the recommendation.
   2. Run `actx-installer --profile=lite`.
+  3. Run `actx embedding`.
 - **Expected**:
   - `--preflight-only` prints the profiles with green, yellow or red status and exits without installing.
-  - The Lite install completes without downloading models; `/rerank` in `actx` reports the RRF fallback.
+  - The Lite install downloads only `multilingual-e5-small` (about 135 MB) into the models folder; `/rerank` in `actx` reports the RRF fallback.
+  - Step 3 shows `multilingual-e5-small` in use, chosen as the default of the Lite profile, local.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
@@ -231,33 +233,38 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
-### MT-SYNC-006: Changing the model reindexes the workspace once
+### MT-SYNC-006: The chat model never reindexes; switching the embedding model does, once
 
-- **Covers**: /model, /sync, embedding target record
-- **Prerequisites**: OpenAI and Gemini keys saved with `/keys`; a workspace with a folder of a few documents, synced with an OpenAI model
+- **Covers**: /model, /embedding, /sync, embedding target record
+- **Prerequisites**: OpenAI and Gemini keys saved with `/keys`; a workspace with a folder of a few documents, synced
 - **Steps**:
-  1. Run `/model gemini-2.5-flash`.
-  2. Run `/sync --incremental` without changing any file.
-  3. Ask a question answered only by one of the documents, phrased without its key words.
-  4. Run `/sync --incremental` again.
+  1. Run `/model gemini-2.5-flash`, then `/sync --incremental` without changing any file.
+  2. Run `/embedding` and note the model in use.
+  3. Run `/embedding multilingual-e5-base` (without `--yes`).
+  4. Run `/embedding multilingual-e5-base --yes`, then `/sync --incremental`.
+  5. Ask a question answered only by one of the documents, phrased without its key words.
+  6. Run `/sync --incremental` again.
 - **Expected**:
-  - Step 1 warns that the next sync reindexes the whole workspace (`openai/text-embedding-3-small → gemini/gemini-embedding-2`).
-  - Step 2 re-embeds every file, although none changed; the sync log shows the "Embedding model changed" line.
-  - Step 3 is answered from that document.
-  - Step 4 reports the workspace as up to date, with no second reindex.
+  - Step 1 gives no reindex warning and the sync reports the workspace as up to date.
+  - Step 3 lists the workspace among those reindexed on their next sync and changes nothing (`/embedding` still shows the earlier model).
+  - Step 4: the sync re-embeds every file, although none changed; the sync log shows the "Embedding model changed" line ending in `local/multilingual-e5-base@768+p1`. The model is downloaded first if it was missing.
+  - Step 5 is answered from that document.
+  - Step 6 reports the workspace as up to date, with no second reindex.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
-### MT-SYNC-007: A Gemini workspace indexed by an older version is repaired
+### MT-SYNC-007: An upgrade keeps the cloud model that built the index
 
-- **Covers**: Gemini embeddings (`gemini-embedding-2`), legacy workspaces
-- **Prerequisites**: a Gemini key; a workspace synced with a Gemini model by a version before the embedding target record (for example v0.45.0)
+- **Covers**: adoption of the existing index model, legacy workspaces, Gemini prefixes
+- **Prerequisites**: three workspaces synced by v0.45 or earlier: two with an OpenAI model, one with a Gemini model (keys saved)
 - **Steps**:
-  1. Install the candidate and run `/sync --incremental` on that workspace.
-  2. Ask a question answered by a passage that shares no key words with the question.
+  1. Install the candidate and run `actx embedding`.
+  2. Run `/sync --incremental` on the OpenAI workspace, then on the Gemini workspace.
+  3. In each workspace, ask a question answered by a passage that shares no key words with the question.
 - **Expected**:
-  - Step 1 reindexes the whole workspace once, without embedding errors in the sync log.
-  - Step 2 is answered from that passage (dense search works with the real Gemini API).
+  - Step 1 shows `text-embedding-3-small` (the model of most indexed workspaces) as the chosen setting, not the profile default.
+  - Step 2: the OpenAI workspaces are kept (no reindex); the Gemini workspace is reindexed once with OpenAI, without embedding errors in the sync log.
+  - Step 3 is answered from that passage in both workspaces.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
@@ -545,26 +552,27 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
-### MT-ANS-010: Without an embedding key, answers use keyword matches only
+### MT-ANS-010: Without any key, answers still use the local embedding model
 
-- **Covers**: mock embedding target (no dense search), `NoEmbeddingKey` status line
-- **Prerequisites**: a fresh settings database (rename `settings.db`) and no provider key in the environment; an Anthropic key for answers (`/keys anthropic <key>`, an Anthropic model selected), which has no embeddings; no OpenAI or Gemini key; a folder with one file that contains the phrase "kestrel timeouts are retried three times" and several unrelated files
+- **Covers**: local embedding by default, no fallback, `/embedding` with a cloud model
+- **Prerequisites**: a fresh settings database (rename `settings.db`) and no provider key in the environment; an Anthropic key for answers (`/keys anthropic <key>`, an Anthropic model selected); a folder with one Portuguese file that says "os timeouts do kestrel são repetidos três vezes" and several unrelated files
 - **Steps**:
   1. Start `actx`, add the folder with `/folder <path>` and wait for the sync to finish.
-  2. Ask: `How are kestrel timeouts handled?`
-  3. Run `/status`.
-  4. Save an OpenAI key (`/keys openai <key>`), run `/sync` and ask the question again.
+  2. Ask in English: `How are kestrel timeouts handled?`, then run `/status`.
+  3. Run `/embedding text-embedding-3-small --yes` (no OpenAI key saved) and `/sync`.
+  4. Run `/embedding <the profile default shown by /embedding before step 3> --yes` and `/sync`.
 - **Expected**:
-  - Step 2 answers from the kestrel file and cites no unrelated file.
-  - Step 3 shows `Dense Search: BM25 only (last query): no embedding API key (/keys)`.
-  - Step 4: the sync reports that the embedding model changed and reindexes the workspace; `/status` then shows `Dense Search: dense + BM25 (last query)`.
+  - Step 1 indexes with the profile's local model; no network call goes to a provider.
+  - Step 2 answers from the Portuguese kestrel file and `/status` shows `Dense Search: dense + BM25 (last query)`.
+  - Step 3: the sync stops before indexing with a message naming `text-embedding-3-small`, the missing OpenAI key and how to fix it; the index is unchanged and questions still use it.
+  - Step 4 syncs normally and reports the workspace as up to date (no reindex).
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
 ### MT-ANS-011: Questions about AnyContext are matched by meaning after a sync
 
 - **Covers**: embedding of the built-in documentation (`Global`) during sync, dense search gate for it
-- **Prerequisites**: a working OpenAI or Gemini key; a workspace with an indexed folder; the version just installed or updated (first start of this version)
+- **Prerequisites**: a workspace with an indexed folder; the version just installed or updated (first start of this version)
 - **Steps**:
   1. Start `actx` and ask, without running a sync: `How do I stop indexing one of my directories?`
   2. Run `/sync` and look at the sync output in `sync_<workspace>.log` in the logs folder.
@@ -572,7 +580,7 @@ How to record a run: in each test of the current run, mark exactly one box of th
   4. Ask a question about one of your own files.
 - **Expected**:
   - Step 1 may only find the documentation by keyword (the wording shares no key word with `/folder --remove`).
-  - Step 2: the log has a line `AnyContext documentation embedded with <provider>/<model>`; a second `/sync` does not print it again.
+  - Step 2: the log has a line `AnyContext documentation embedded with <target>` naming the embedding model in use; a second `/sync` does not print it again.
   - Step 3 answers with `/folder --remove <path>` from the built-in documentation.
   - Step 4 cites your files and no built-in documentation section that is unrelated to the question.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
@@ -618,6 +626,21 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Expected**:
   - Model badges read `Compatible`, `Swap Risk` or `Insufficient Hardware - Requires X GB` according to the machine's RAM; Gemma entries are marked planned.
   - `/profile` lists the profiles with their status and switching to Lite takes effect.
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
+### MT-MOD-004: Embedding models from a company mirror or copied by hand
+
+- **Covers**: model source (`models_mirror`, `ACTX_MODELS_MIRROR`), checksum of pre-placed files
+- **Prerequisites**: a machine without `multilingual-e5-base` in the models folder; a web server you control (for example `python -m http.server` in a folder) holding `multilingual-e5-base/model.onnx` and `multilingual-e5-base/tokenizer.json` downloaded from the URLs in the catalog; network access to huggingface.co blocked or watched
+- **Steps**:
+  1. Set `ACTX_MODELS_MIRROR=http://<server>:<port>` and run `actx embedding multilingual-e5-base --yes`, then `actx sync -w <workspace>`.
+  2. Delete the model folder, copy the two files by hand into `<models>/multilingual-e5-base/`, unset the variable and disconnect the network; run `actx sync -w <workspace> --force`.
+  3. Replace `tokenizer.json` with any other file of the same size and run `actx sync -w <workspace>`.
+- **Expected**:
+  - Step 1 downloads both files from the mirror only (its access log shows them, huggingface.co is never contacted) and indexes the workspace.
+  - Step 2 indexes without any network access.
+  - Step 3 stops before indexing with a message saying the file does not match the verified one; the index is unchanged.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 

@@ -57,6 +57,10 @@ pub struct VectorRecord {
     pub start_line: Option<u32>,
     #[serde(default)]
     pub end_line: Option<u32>,
+    /// Key of the vector space that produced `vector` (ADR-0154). `None` on rows written before
+    /// the column existed: they belong to the target recorded for their workspace.
+    #[serde(default)]
+    pub embedding_target: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -239,12 +243,14 @@ impl NativeLanceStore {
         Arc::new(Schema::new(fields))
     }
 
-    /// Nullable provenance columns added after the first table schema (ADR-0142).
+    /// Nullable columns added after the first table schema: the provenance (ADR-0142) and the
+    /// embedding target of each chunk (ADR-0154).
     fn provenance_fields() -> Vec<Field> {
         vec![
             Field::new("header_path", DataType::Utf8, true),
             Field::new("start_line", DataType::UInt32, true),
             Field::new("end_line", DataType::UInt32, true),
+            Field::new("embedding_target", DataType::Utf8, true),
         ]
     }
 
@@ -434,6 +440,7 @@ impl NativeLanceStore {
         let mut header_paths = Vec::with_capacity(num_records);
         let mut start_lines = Vec::with_capacity(num_records);
         let mut end_lines = Vec::with_capacity(num_records);
+        let mut targets = Vec::with_capacity(num_records);
 
         // Field-level encryption at rest: `text`, `document_summary`, `keywords` and `header_path` are stored as
         // AES-GCM-256 `enc::` payloads with the hardware-bound key; `extract_scored_results`
@@ -466,6 +473,7 @@ impl NativeLanceStore {
             header_paths.push(r.header_path.map(|h| sec.encrypt_text(&h)));
             start_lines.push(r.start_line);
             end_lines.push(r.end_line);
+            targets.push(r.embedding_target);
         }
 
         let id_arr = Arc::new(StringArray::from(ids));
@@ -488,6 +496,7 @@ impl NativeLanceStore {
         let hp_arr = Arc::new(StringArray::from(header_paths));
         let sl_arr = Arc::new(UInt32Array::from(start_lines));
         let el_arr = Arc::new(UInt32Array::from(end_lines));
+        let et_arr = Arc::new(StringArray::from(targets));
 
         let batch = RecordBatch::try_new(
             schema.clone(),
@@ -506,6 +515,7 @@ impl NativeLanceStore {
                 hp_arr,
                 sl_arr,
                 el_arr,
+                et_arr,
             ],
         )
         .map_err(|e| format!("Failed to create Arrow RecordBatch: {e}"))?;
@@ -703,6 +713,14 @@ impl NativeLanceStore {
         Ok(query_vector)
     }
 
+    /// Filter that keeps a dense search inside one vector space (ADR-0154): rows embedded with
+    /// `target_key`, plus rows written before the column existed, which belong to the target
+    /// recorded for their workspace (the query side embeds with that same target).
+    pub fn embedding_target_filter(target_key: &str) -> String {
+        let clean = target_key.replace('\'', "''");
+        format!("(embedding_target = '{clean}' OR embedding_target IS NULL)")
+    }
+
     /// Performs vector similarity search with optional workspace filtering asynchronously.
     pub async fn search_vector_async(
         &self,
@@ -724,6 +742,9 @@ impl NativeLanceStore {
             .await
             .map_err(|e| e.to_string())?;
 
+        // A table from an older version may lack the `embedding_target` column that dense
+        // filters use; adding it is a schema-only commit, and a no-op once present.
+        Self::add_missing_provenance_columns(&table).await?;
         let dim = Self::table_vector_dim(&table).await?;
         let query_vector = Self::fit_query_vector(query_vector, dim)?;
         let mut query = table.vector_search(query_vector).map_err(|e| e.to_string())?;
@@ -1039,6 +1060,10 @@ impl NativeLanceStore {
                 .values()
                 .to_vec();
             let (header_path, start_line, end_line) = Self::provenance_at(batch, i);
+            let embedding_target = batch
+                .column_by_name("embedding_target")
+                .and_then(|c| c.as_any().downcast_ref::<StringArray>())
+                .and_then(|c| (!c.is_null(i)).then(|| c.value(i).to_string()));
             records.push(VectorRecord {
                 id: id.value(i).to_string(),
                 vector,
@@ -1054,6 +1079,7 @@ impl NativeLanceStore {
                 header_path,
                 start_line,
                 end_line,
+                embedding_target,
             });
         }
         Ok(records)
@@ -1233,6 +1259,7 @@ impl NativeLanceStore {
                 col(&|r| r.header_path.clone()),
                 Arc::new(UInt32Array::from(records.iter().map(|r| r.start_line).collect::<Vec<_>>())),
                 Arc::new(UInt32Array::from(records.iter().map(|r| r.end_line).collect::<Vec<_>>())),
+                col(&|r| r.embedding_target.clone()),
             ],
         )
         .expect("plaintext batch");
@@ -1267,6 +1294,7 @@ mod tests {
                 header_path: None,
                 start_line: None,
                 end_line: None,
+                embedding_target: None,
             },
             VectorRecord {
                 id: "c2".into(),
@@ -1283,6 +1311,7 @@ mod tests {
                 header_path: None,
                 start_line: None,
                 end_line: None,
+                embedding_target: None,
             },
         ];
 
@@ -1351,6 +1380,7 @@ mod tests {
                 header_path: None,
                 start_line: None,
                 end_line: None,
+                embedding_target: None,
             },
         ];
 
@@ -1399,6 +1429,7 @@ mod tests {
             header_path: Some(format!("legacy.md > {CANARY}")),
             start_line: Some(3),
             end_line: Some(9),
+            embedding_target: None,
         }
     }
 
