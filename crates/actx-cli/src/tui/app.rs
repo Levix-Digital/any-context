@@ -77,6 +77,8 @@ pub struct App {
     pub chat_history: Vec<ChatMessageItem>,
     pub workspace_chat_buffers: std::collections::HashMap<String, Vec<ChatMessageItem>>,
     pub current_stream_buffer: String,
+    /// Warning about the running answer's search, shown when the answer ends (IMP-040).
+    pub pending_notice: Option<String>,
     pub current_thinking_buffer: String,
     pub scroll_offset: u16,
     pub auto_scroll: bool,
@@ -210,6 +212,7 @@ impl App {
             chat_history: initial_history,
             workspace_chat_buffers: std::collections::HashMap::new(),
             current_stream_buffer: String::new(),
+            pending_notice: None,
             current_thinking_buffer: String::new(),
             scroll_offset: 0,
             auto_scroll: true,
@@ -1318,10 +1321,23 @@ impl App {
                 self.status = AppStatus::Streaming;
                 self.current_stream_buffer.push_str(&token);
             }
+            AgentEvent::Notice(text) => {
+                self.pending_notice = Some(text);
+            }
             AgentEvent::Done { .. } => {
                 self.finalize_assistant_turn();
+                // Shown under the answer as a system line, kept out of the answer itself (IMP-040).
+                if let Some(text) = self.pending_notice.take() {
+                    self.chat_history.push(ChatMessageItem {
+                        role: MessageRole::System,
+                        content: format!("⚠ {text}"),
+                        thinking: None,
+                        timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                    });
+                }
             }
             AgentEvent::Error(err) => {
+                self.pending_notice = None;
                 if !self.current_stream_buffer.is_empty() || !self.current_thinking_buffer.is_empty() {
                     let thinking = if !self.current_thinking_buffer.is_empty() {
                         Some(std::mem::take(&mut self.current_thinking_buffer))
@@ -1370,5 +1386,45 @@ impl App {
 
         self.is_generating = false;
         self.status = AppStatus::Idle;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn answered(events: Vec<AgentEvent>) -> Vec<(MessageRole, String)> {
+        let mut app = App::new("W".to_string(), "test-model".to_string(), None);
+        let before = app.chat_history.len();
+        for e in events {
+            app.handle_agent_event(e);
+        }
+        app.chat_history[before..].iter().map(|m| (m.role.clone(), m.content.clone())).collect()
+    }
+
+    #[test]
+    fn notice_is_shown_under_the_answer_as_a_system_line() {
+        let shown = answered(vec![
+            AgentEvent::Delta("The answer.".to_string()),
+            AgentEvent::Notice("Answered by keyword search only: x.".to_string()),
+            AgentEvent::Done { total_turns: 1, total_tokens: None },
+        ]);
+        assert_eq!(shown, vec![
+            (MessageRole::Assistant, "The answer.".to_string()),
+            (MessageRole::System, "⚠ Answered by keyword search only: x.".to_string()),
+        ]);
+    }
+
+    #[test]
+    fn no_notice_line_without_a_notice_or_after_an_error() {
+        let shown = answered(vec![AgentEvent::Delta("The answer.".to_string()), AgentEvent::Done { total_turns: 1, total_tokens: None }]);
+        assert_eq!(shown, vec![(MessageRole::Assistant, "The answer.".to_string())]);
+
+        let shown = answered(vec![
+            AgentEvent::Notice("Answered by keyword search only: x.".to_string()),
+            AgentEvent::Error("boom".to_string()),
+            AgentEvent::Done { total_turns: 0, total_tokens: None },
+        ]);
+        assert!(shown.iter().all(|(_, c)| !c.contains("keyword search only")), "{shown:?}");
     }
 }

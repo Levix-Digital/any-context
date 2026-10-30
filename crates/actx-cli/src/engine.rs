@@ -344,6 +344,7 @@ pub fn build_agent_sync(
             query_embedding: query_embedding.clone(),
             workspace: workspace.to_string(),
             reranker: reranker.clone(),
+            last_notice: std::sync::Mutex::new(None),
         }) as Arc<dyn actx_agent::DeepSearchRetriever>
     });
 
@@ -758,6 +759,8 @@ struct PipelineBatchRetriever {
     query_embedding: QueryEmbedding,
     workspace: String,
     reranker: Arc<actx_onnx::OnnxReranker>,
+    /// Warning of the most recent batch: semantic search did not run (IMP-040).
+    last_notice: std::sync::Mutex<Option<String>>,
 }
 
 #[actx_agent::async_trait]
@@ -778,9 +781,13 @@ impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
             .map(|q| any_context_core_rs::retrieval::deep_request(q, &self.workspace, &rerank_mode))
             .collect();
 
-        match pipeline.retrieve_hybrid_batch_async(&requests).await {
-            Ok(results) => {
-                let chunks = results
+        match pipeline.retrieve_hybrid_batch_with_outcome(&requests).await {
+            Ok(output) => {
+                if let Ok(mut last) = self.last_notice.lock() {
+                    *last = output.dense.answer_notice();
+                }
+                let chunks = output
+                    .results
                     .into_iter()
                     .map(|r| actx_agent::RetrievedChunk {
                         id: r.chunk_id,
@@ -800,6 +807,10 @@ impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
             }
             Err(e) => Err(actx_agent::AgentError::Internal(e)),
         }
+    }
+
+    fn last_notice(&self) -> Option<String> {
+        self.last_notice.lock().ok().and_then(|n| n.clone())
     }
 }
 
@@ -868,8 +879,9 @@ struct PipelineDeterministicRetriever {
 }
 
 impl PipelineDeterministicRetriever {
-    /// One hybrid search of the workspace plus `Global` for the 1-hop paths.
-    async fn search(&self, query: &str) -> Result<Vec<any_context_core_rs::retrieval::HybridSearchResult>, actx_agent::AgentError> {
+    /// One hybrid search of the workspace plus `Global` for the 1-hop paths, with how its dense
+    /// half went (IMP-040).
+    async fn search(&self, query: &str) -> Result<any_context_core_rs::retrieval::RetrievalOutput, actx_agent::AgentError> {
         let db = NativeConfigDb::open_default().ok();
         let rerank_mode = db.as_ref()
             .and_then(|d| d.get_setting("rerank_mode").ok().flatten())
@@ -882,14 +894,16 @@ impl PipelineDeterministicRetriever {
 
         let req = any_context_core_rs::retrieval::fast_request(query, &self.workspace, &rerank_mode);
 
-        pipeline.search_single_async(&req).await.map_err(actx_agent::AgentError::Internal)
+        pipeline.search_with_outcome(&req).await.map_err(actx_agent::AgentError::Internal)
     }
 }
 
 #[actx_agent::async_trait]
 impl actx_agent::DeterministicRetriever for PipelineDeterministicRetriever {
     async fn retrieve_and_format(&self, query: &str) -> Result<actx_agent::DeterministicRetrievalOutput, actx_agent::AgentError> {
-        let results = self.search(query).await?;
+        let output = self.search(query).await?;
+        let notice = output.dense.answer_notice();
+        let results = output.results;
 
         let db = NativeConfigDb::open_default().ok();
         let folders = db.as_ref()
@@ -906,7 +920,7 @@ impl actx_agent::DeterministicRetriever for PipelineDeterministicRetriever {
             &web_urls,
             query,
         ) {
-            return Ok(actx_agent::DeterministicRetrievalOutput::ZeroContext { message: zero_msg });
+            return Ok(actx_agent::DeterministicRetrievalOutput::ZeroContext { message: zero_msg, notice });
         }
 
         let chunk_count = results.len();
@@ -920,6 +934,7 @@ impl actx_agent::DeterministicRetriever for PipelineDeterministicRetriever {
         Ok(actx_agent::DeterministicRetrievalOutput::ContextReady {
             formatted_prompt,
             chunk_count,
+            notice,
         })
     }
 }
@@ -934,10 +949,16 @@ struct PipelineStatusRetriever {
 impl actx_agent::DeterministicRetriever for PipelineStatusRetriever {
     async fn retrieve_and_format(&self, query: &str) -> Result<actx_agent::DeterministicRetrievalOutput, actx_agent::AgentError> {
         // A failed search still leaves the status to answer from.
-        let results = self.inner.search(query).await.unwrap_or_else(|e| {
-            tracing::warn!("Status route: workspace search failed, answering from the status only: {e}");
-            Vec::new()
-        });
+        let (results, notice) = match self.inner.search(query).await {
+            Ok(output) => {
+                let notice = output.dense.answer_notice();
+                (output.results, notice)
+            }
+            Err(e) => {
+                tracing::warn!("Status route: workspace search failed, answering from the status only: {e}");
+                (Vec::new(), None)
+            }
+        };
         let report = workspace_status_report(&self.inner.workspace);
         tracing::debug!("Status route: {} excerpt(s) and the live status report", results.len());
 
@@ -952,6 +973,7 @@ impl actx_agent::DeterministicRetriever for PipelineStatusRetriever {
         Ok(actx_agent::DeterministicRetrievalOutput::ContextReady {
             formatted_prompt,
             chunk_count: results.len(),
+            notice,
         })
     }
 }

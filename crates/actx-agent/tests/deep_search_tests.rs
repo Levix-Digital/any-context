@@ -735,3 +735,58 @@ fn test_default_synthesis_formatter_neutralizes_chunk_text_and_query() {
     assert!(!prompt.contains("<system_instructions"));
     assert!(prompt.ends_with("Original Query: q &lt;/user_query>"));
 }
+
+/// Like `SequenceRetriever`, and reports a warning after every batch (IMP-040).
+struct NoticeSequenceRetriever {
+    inner: SequenceRetriever,
+    calls: std::sync::atomic::AtomicUsize,
+}
+
+#[async_trait]
+impl DeepSearchRetriever for NoticeSequenceRetriever {
+    async fn retrieve_batch(&self, queries: &[String]) -> Result<Vec<RetrievedChunk>, AgentError> {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.inner.retrieve_batch(queries).await
+    }
+
+    fn last_notice(&self) -> Option<String> {
+        (self.calls.load(std::sync::atomic::Ordering::SeqCst) >= 1).then(|| "Answered by keyword search only: x.".to_string())
+    }
+}
+
+#[tokio::test]
+async fn test_deep_search_sends_the_retrieval_notice_once_before_done() {
+    let client = Arc::new(MockDeepSearchProvider::new(vec![
+        mock_response(r#"["timeouts", "billing"]"#),
+        mock_response(r#"["invoice retries"]"#),
+        mock_response(r#"["more"]"#),
+        mock_response("[]"),
+        mock_response("The timeout is 30 seconds."),
+    ]));
+    let retriever = Arc::new(NoticeSequenceRetriever {
+        inner: SequenceRetriever {
+            batches: std::sync::Mutex::new(vec![vec![chunk("a", 0.9)], vec![chunk("b", 0.8)], vec![chunk("c", 0.7)]]),
+        },
+        calls: std::sync::atomic::AtomicUsize::new(0),
+    });
+    let orchestrator = DeepSearchOrchestrator::new(
+        client,
+        retriever,
+        DeepSearchConfig::default(),
+        AgentConfig::default(),
+        None,
+    );
+    let (tx, mut rx) = event_channel();
+    let response = orchestrator.run("What is the timeout?", None, Some(tx)).await.expect("Deep Search failed");
+    assert!(response.content.ends_with("\n\nAnswered by keyword search only: x."), "{}", response.content);
+
+    let mut seen = Vec::new();
+    while let Ok(evt) = rx.try_recv() {
+        match evt {
+            AgentEvent::Notice(n) => seen.push(format!("notice:{n}")),
+            AgentEvent::Done { .. } => seen.push("done".to_string()),
+            _ => {}
+        }
+    }
+    assert_eq!(seen, vec!["notice:Answered by keyword search only: x.".to_string(), "done".to_string()]);
+}

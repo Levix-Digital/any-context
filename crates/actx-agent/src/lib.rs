@@ -50,11 +50,22 @@ pub enum DeterministicRetrievalOutput {
     ContextReady {
         formatted_prompt: String,
         chunk_count: usize,
+        /// Warning line for the end of the answer (e.g. keyword search only, IMP-040).
+        notice: Option<String>,
     },
     /// Zero chunks or below threshold; provides an honest negative response without LLM calls ($0.00 / 0 turns).
     ZeroContext {
         message: String,
+        notice: Option<String>,
     },
+}
+
+/// Answer text followed by its warning line, if any. The session history keeps the answer only.
+fn with_notice(content: String, notice: Option<&str>) -> String {
+    match notice {
+        Some(n) => format!("{content}\n\n{n}"),
+        None => content,
+    }
 }
 
 /// Default retriever delegating to a tool in the ToolRegistry (e.g. "search_db")
@@ -178,7 +189,7 @@ impl Agent {
     ) -> Result<AgentResponse, AgentError> {
         let start_time = Instant::now();
         match retriever.retrieve_and_format(input).await? {
-            DeterministicRetrievalOutput::ZeroContext { message } => {
+            DeterministicRetrievalOutput::ZeroContext { message, notice } => {
                 if let (Some(sid), Some(store)) = (session_id, self.orchestrator.session_store()) {
                     let _ = store.append_messages(sid, &[
                         ChatMessage::user(input),
@@ -186,14 +197,14 @@ impl Agent {
                     ]).await;
                 }
                 Ok(AgentResponse {
-                    content: message,
+                    content: with_notice(message, notice.as_deref()),
                     tool_calls_count: 0,
                     total_turns: 0,
                     finish_reason: Some(FinishReason::Stop),
                     execution_time_ms: start_time.elapsed().as_millis() as u64,
                 })
             }
-            DeterministicRetrievalOutput::ContextReady { formatted_prompt, chunk_count: _ } => {
+            DeterministicRetrievalOutput::ContextReady { formatted_prompt, chunk_count: _, notice } => {
                 let mut messages = Vec::new();
                 if let (Some(sid), Some(store)) = (session_id, self.orchestrator.session_store()) {
                     let prior = store.get_messages(sid).await.unwrap_or_default();
@@ -218,7 +229,7 @@ impl Agent {
                 }
 
                 Ok(AgentResponse {
-                    content,
+                    content: with_notice(content, notice.as_deref()),
                     tool_calls_count: 0,
                     total_turns: 1,
                     finish_reason: res.finish_reason,
@@ -292,8 +303,11 @@ impl Agent {
         tokio::spawn(async move {
             let start_time = Instant::now();
             match retriever.retrieve_and_format(&inp).await {
-                Ok(DeterministicRetrievalOutput::ZeroContext { message }) => {
+                Ok(DeterministicRetrievalOutput::ZeroContext { message, notice }) => {
                     let _ = tx.send(AgentEvent::Delta(message.clone()));
+                    if let Some(notice) = notice {
+                        let _ = tx.send(AgentEvent::Notice(notice));
+                    }
                     let _ = tx.send(AgentEvent::Done {
                         total_turns: 0,
                         total_tokens: Some(0),
@@ -312,7 +326,7 @@ impl Agent {
                         execution_time_ms: start_time.elapsed().as_millis() as u64,
                     })
                 }
-                Ok(DeterministicRetrievalOutput::ContextReady { formatted_prompt, chunk_count: _ }) => {
+                Ok(DeterministicRetrievalOutput::ContextReady { formatted_prompt, chunk_count: _, notice }) => {
                     let mut messages = Vec::new();
                     if let (Some(sid), Some(ref store)) = (session_id.as_deref(), session_store.as_ref()) {
                         let prior = store.get_messages(sid).await.unwrap_or_default();
@@ -346,6 +360,9 @@ impl Agent {
                                         _ => {}
                                     }
                                 }
+                            }
+                            if let Some(notice) = notice {
+                                let _ = tx.send(AgentEvent::Notice(notice));
                             }
                             let _ = tx.send(AgentEvent::Done {
                                 total_turns: 1,

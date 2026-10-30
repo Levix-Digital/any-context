@@ -51,6 +51,12 @@ pub struct RetrievedChunk {
 pub trait DeepSearchRetriever: Send + Sync {
     /// Retrieve relevant document chunks for a batch of sub-queries concurrently
     async fn retrieve_batch(&self, queries: &[String]) -> Result<Vec<RetrievedChunk>, AgentError>;
+
+    /// Warning about the most recent `retrieve_batch`, shown at the end of the answer (for
+    /// example, semantic search did not run, IMP-040).
+    fn last_notice(&self) -> Option<String> {
+        None
+    }
 }
 
 /// Builds the final synthesis prompt from the accepted chunks and the user's question.
@@ -337,6 +343,8 @@ impl DeepSearchOrchestrator {
         let mut all_explored_queries = Vec::new();
         let mut all_accepted_chunks: Vec<RetrievedChunk> = Vec::new();
         let mut seen_chunk_keys: HashSet<String> = HashSet::new();
+        // First warning a batch retrieval reported, shown once at the end (IMP-040).
+        let mut notice: Option<String> = None;
 
         // 1. Session History Preparation
         let mut working_history = Vec::new();
@@ -388,6 +396,9 @@ impl DeepSearchOrchestrator {
                 .retrieve_batch(&current_search_queries)
                 .await
                 .unwrap_or_default();
+            if notice.is_none() {
+                notice = self.retriever.last_notice();
+            }
 
             // B. Deduplicate and collect accepted chunks
             for chunk in retrieved {
@@ -535,14 +546,23 @@ impl DeepSearchOrchestrator {
         }
 
         if let Some(ref tx) = event_tx {
+            if let Some(ref notice) = notice {
+                let _ = tx.send(AgentEvent::Notice(notice.clone()));
+            }
             let _ = tx.send(AgentEvent::Done {
                 total_turns: total_turns_executed,
                 total_tokens: None,
             });
         }
 
+        // The session history keeps the answer only; the returned text ends with the warning.
+        let content = match notice {
+            Some(n) => format!("{clean_final_answer}\n\n{n}"),
+            None => clean_final_answer,
+        };
+
         Ok(AgentResponse {
-            content: clean_final_answer,
+            content,
             total_turns: total_turns_executed,
             tool_calls_count: all_accepted_chunks.len(),
             finish_reason: final_reason.or(Some(FinishReason::Stop)),
