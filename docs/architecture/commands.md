@@ -22,10 +22,10 @@ Rendering results, menus and progress is the job of the [TUI](tui.md) and the [C
 |---|---|---|
 | `CommandEngine::execute(raw_cmd, args, ctx)` | `engine.rs` | Single dispatcher for every command and alias. |
 | `CommandEngine::spawn_sync_worker` | `engine.rs` | Starts a detached `--sync-worker` process. |
-| `ExecutionContext` | `models.rs` | Input: active workspace, model, grounding mode, search mode, web search flag, execution device, re-rank mode. |
+| `ExecutionContext` | `models.rs` | Input: active workspace, model, grounding mode, search mode, web search flag, execution device. |
 | `CommandResult` | `models.rs` | Output: `success`, `message` (Markdown), `action`, `state_updates`, `error`. |
 | `CommandAction` | `models.rs` | `None`, `Exit`, `ClearChat`, `OpenMenu(id)`, `SwitchWorkspace(name)`, `RebuildAgent`, `StartDownload(id)`, `SetDevice(name)`. |
-| `CommandStateUpdates` | `models.rs` | Optional new values for workspace, model, grounding mode, search mode, web search, execution device and re-rank mode. |
+| `CommandStateUpdates` | `models.rs` | Optional new values for workspace, model, grounding mode, search mode, web search and execution device. |
 | `GroundingMode`, `SearchDepthMode` | `models.rs` | `strict`/`hybrid`/`proactive` and `auto`/`fast`/`deep`, with short aliases. |
 
 ```mermaid
@@ -55,7 +55,7 @@ The command name is trimmed, stripped of the leading `/` and lower-cased. A `@<v
 | Answer settings | `/mode` (`/grounding`), `/search` (`/depth`), `/fast`, `/deep`, `/web-search`, `/router` | Set and persist grounding mode, search depth and web search per workspace; show the routing decision. |
 | Sources | `/folder` (`/add`, `/dir`), `/web` (`/url`), `/sources` (`/src`), `/transfer`, `/link`, `/unlink` | Add or remove folders and web sources (adding one starts a sync worker), list and rename sources (`/sources rename <n> <name>`), move or copy a source between workspaces. |
 | Index | `/sync` (`/reindex`, `/index`), `/cancel` (`/stop`), `/purge`, `/inspect` (`/chunks`), `/status`, `/logs`, `/density`, `/spans` | Start or cancel a sync, delete a workspace's vectors, inspect chunks and counts (`/inspect <filter>` matches decrypted text in memory over a sample of up to 2,000 chunks), read log files, inspect chunk density and PDF spans. |
-| Models and hardware | `/model` (`/models`, `/m`), `/download` (`/dl`, `/get-model`), `/profile`, `/preset` (`/kit`), `/device` (`/gpu`), `/rerank`, `/embedding` (`/embeddings`, `/embed`), `/vision`, `/ocr` | Select the language model with hardware guardrails, show or switch the embedding model, validate and request model downloads, switch hardware profiles and workspace presets, choose the execution device, set the re-rank mode and model. |
+| Models and hardware | `/model` (`/models`, `/m`), `/download` (`/dl`, `/get-model`), `/profile`, `/preset` (`/kit`), `/device` (`/gpu`), `/embedding` (`/embeddings`, `/embed`), `/vision`, `/ocr` | Select the language model with hardware guardrails, show or switch the embedding model, validate and request model downloads, switch hardware profiles and workspace presets, choose the execution device. The re-ranker has no command: it is always on and its state is in `/status`. |
 | Memory | `/history`, `/reset-memory` (`/forget`) | Inspect or wipe the workspace session (`ws_<workspace>`) and clear the chat. |
 | Configuration | `/keys` (`/api-key`), `/config` (`/settings`), `/onboarding` (`/setup`), `/diagnostics` (`/diag`, `/health`), `/billing` | Save API keys in SQLite and export them to the process environment, followed by `RebuildAgent` (a failed save is reported as session-only); show the configuration dashboard, open the onboarding wizard, show diagnostics, show the tier (Community). |
 | Updates | `/update` (`/upgrade`), `/check-update`, `/version`, `/info` | `/update` only explains how to run `actx --update[@version]` from the OS terminal and logs the request; the update itself never runs inside the interactive session. |
@@ -70,7 +70,7 @@ The command name is trimmed, stripped of the leading `/` and lower-cased. A `@<v
 - `/model <id>` accepts cloud models immediately; local models are checked by `HardwareProfiler` and rejected when unsafe for the machine unless `--force` is given (see [Model Catalog and Hardware Profiling](model-catalog.md)).
 - `/download <id|alias>` resolves the catalog entry, runs the disk and RAM pre-flight checks and, when they pass, returns `CommandAction::StartDownload(id)`; the UI performs the download. Planned models (local Gemma 4) are refused.
 - `/model list` and the TUI models menu show the chat model catalog (`any_context_core_rs::llm_catalog`), the same list `/preset` and onboarding take their models from. A retired model id stored or typed by the user is replaced with its successor when the model is resolved, with a notice ([Language Model Providers](lm-providers.md)).
-- `/rerank [auto|on|off|status]` persists `rerank_mode`; `/rerank model <id>` persists `reranker_model`.
+- `/status` has a `Reranker` line: the active model, its state (ready, or why the last query kept the fusion order), the Fast/Deep depth of the profile and the last pass's latency and candidate count. There is no `/rerank` command; the stored `reranker_model` setting still chooses the model until the hardware kit does (IMP-055).
 - `/embedding` shows the embedding model in use, its source and vector space, and the catalog with each local model's size and state. `/embedding <id>` returns a preview as an error result (the workspaces reindexed on their next sync, a notice when document text goes to a cloud provider) and changes nothing; `/embedding <id> --yes` saves the `embedding_model` setting. Unknown, mock and refused ids are rejected (`CommandEngine::embedding_command`, ADR-0154). `/model` never changes the embedding model.
 - `/preset offline|balanced|frontier|privacy` reconfigures the workspace: `balanced` sets `gpt-6-luna`, hybrid grounding, auto search and web search on; `frontier` sets `claude-opus-5-5`, proactive grounding, deep search and web search on; `offline` and `privacy` keep the active model and set strict grounding, fast search and web search off, but only when the active model runs locally (`ollama/<model>` or `local/<model>`). With any other model they fail, explain that local Gemma 4 generation is planned, suggest `/model ollama/<model>` and change nothing.
 
@@ -93,6 +93,7 @@ The command name is trimmed, stripped of the leading `/` and lower-cased. A `@<v
 - [ADR-0121](../adr/0121-modular-onnx-crate-hardware-profiles.md): `/profile`.
 - [ADR-0125](../adr/0125-local-gemma-activation-hardware-guardrails.md): model guardrails with `--force` and workspace presets.
 - [ADR-0126](../adr/0126-assisted-gemma-weights-downloader.md): `/download` and `CommandAction::StartDownload`.
-- [ADR-0129](../adr/0129-two-stage-retrieval-cross-encoder-reranking.md) and [ADR-0130](../adr/0130-real-onnx-runtime-multilingual-cross-encoder.md): `/rerank` modes and model selection.
+- [ADR-0129](../adr/0129-two-stage-retrieval-cross-encoder-reranking.md) and [ADR-0130](../adr/0130-real-onnx-runtime-multilingual-cross-encoder.md): re-ranker model selection (the `/rerank` command was removed by ADR-0157).
 - [ADR-0133](../adr/0133-offline-and-privacy-presets-require-a-working-local-model.md): offline and privacy presets require a working local model.
 - [ADR-0137](../adr/0137-chat-model-catalog-with-retired-model-ids-resolved-to-succes.md): `/preset` and `/model list` read the chat model catalog.
+- [ADR-0157](../adr/0157-the-cross-encoder-is-always-on-discards-what-it-does-not-sco.md): `/rerank` removed; the re-ranker's state moved to `/status`.

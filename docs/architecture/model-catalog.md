@@ -51,7 +51,7 @@ Every file URL is pinned to an upstream revision and carries its exact size and 
 
 ### Lookup and the active re-ranker
 
-`resolve_spec` accepts ids and aliases (an exact id wins, so `bge-m3` is the embedding model and `m3` or `reranker-m3` the re-ranker): `reranker`, `rerank` and anything containing `mmarco` resolve to `mmarco-reranker` (checked first, so digits in model names do not match Gemma aliases), and `compact`, `12b`, `27b`, `32b` resolve to the Gemma tiers. `active_reranker_spec` returns the model from the `reranker_model` setting (read once and cached), defaulting to `mmarco-reranker`; `set_active_reranker` persists it.
+`resolve_spec` accepts ids and aliases (an exact id wins, so `bge-m3` is the embedding model and `m3` or `reranker-m3` the re-ranker): `reranker`, `rerank` and anything containing `mmarco` resolve to `mmarco-reranker` (checked first, so digits in model names do not match Gemma aliases), and `compact`, `12b`, `27b`, `32b` resolve to the Gemma tiers. `active_reranker_spec` returns the model of `ACTX_RERANKER_MODEL` (`--rerank-model`), else the `reranker_model` setting (read once and cached), defaulting to `mmarco-reranker`. No command sets the setting since `/rerank` was removed (ADR-0157); the hardware kit will choose the model (IMP-055). `active_reranker_state` says whether it can run, or why not (weights missing, runtime missing, failed load).
 
 ### Downloads
 
@@ -94,7 +94,7 @@ Each profile also needs its disk requirement plus 1 GB of headroom for green (0.
 
 ## Interfaces
 
-- **Called by**: the [command engine](commands.md) (`/download`, `/model`, `/profile`, `/preset`, `/rerank`, `/status`), the [TUI](tui.md) (download task, model menus, header badges), the [CLI](cli.md) (`actx download`, re-ranker creation, `--diag`).
+- **Called by**: the [command engine](commands.md) (`/download`, `/model`, `/profile`, `/preset`, `/status`), the [TUI](tui.md) (download task, model menus, header badges), the [CLI](cli.md) (`actx download`, re-ranker creation, `--diag`).
 - **Calls**: [storage](storage.md) (models directory, settings), [ONNX Inference](onnx.md) (`ExecutionDevice`, component types).
 
 ## Decisions
