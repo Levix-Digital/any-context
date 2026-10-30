@@ -6,7 +6,7 @@ version: v1.0.0
 status: in_progress
 author: LeviGuilherme
 created_at: '2026-10-30T21:40:05'
-updated_at: '2026-10-30T22:20:27'
+updated_at: '2026-10-30T23:17:34'
 session_id: null
 tags:
 - retrieval
@@ -19,9 +19,13 @@ backlog_items:
 spec_dir: specs/006-reranker-relevance-bands
 milestones:
 - name: M1 Core
-  done: false
+  done: true
+  done_at: '2026-10-30'
+  by: LeviGuilherme
 - name: M2 Status and benchmark
-  done: false
+  done: true
+  done_at: '2026-10-30'
+  by: LeviGuilherme
 - name: M3 Docs and checks
   done: false
 status_log:
@@ -33,6 +37,12 @@ status_log:
   by: LeviGuilherme
   status: in_progress
   note: 'Approved by Levi (gate 3), 2026-10-30: conservative threshold'
+- at: '2026-10-30T23:17:32'
+  by: LeviGuilherme
+  note: Milestone 'M1 Core' completed
+- at: '2026-10-30T23:17:34'
+  by: LeviGuilherme
+  note: Milestone 'M2 Status and benchmark' completed
 ---
 
 # Reranker relevance bands

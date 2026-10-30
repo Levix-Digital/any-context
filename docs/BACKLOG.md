@@ -1249,13 +1249,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 2, Routing. Each Deep turn refines or decomposes the question from what was found, searches, and evaluates what is missing. Default maximum of 3 turns (up to 5 only through a domain pack), stopping early when evidence is enough, plus a token ceiling; the default is tuned by the evaluation set.
 
-### IMP-044: [retrieval] Calibrated reranker relevance bands per model
-- **Priority**: medium
-- **Status**: in_progress
-- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
-- **Plan**: imp_044_reranker_relevance_bands
-- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 6, Reranking. Reranker scores map to relevant, maybe and irrelevant bands with per-model thresholds in the catalog, refined per workspace by the evaluation. Irrelevant chunks never go to the LLM. The bands feed the nothing-found gate, the Fast-to-Deep escalation and selection. Supersedes IMP-007.
-
 ### IMP-045: [retrieval] Selection by relevance bands and the token budget
 - **Priority**: medium
 - **Status**: open
@@ -2188,3 +2181,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: imp_043_reranker_always_on
 - **Closed**: 2026-10-30, PR #389
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 6, Reranking. The cross-encoder from the hardware kit judges relevance in both modes, over the child chunk with its contextual header; summaries are reranked, SQL results are not. Acceptance: the /rerank command and the option to disable reranking are removed; Deep's chunk-by-chunk LLM yes/no is removed; candidates beyond the budget are discarded, not pushed to the end.
+
+### IMP-044: [retrieval] Calibrated reranker relevance bands per model
+- **Priority**: medium
+- **Status**: done
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: imp_044_reranker_relevance_bands
+- **Closed**: 2026-10-30, PR #390
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 6, Reranking. Reranker scores map to relevant, maybe and irrelevant bands with per-model thresholds in the catalog, refined per workspace by the evaluation. Irrelevant chunks never go to the LLM. The bands feed the nothing-found gate, the Fast-to-Deep escalation and selection. Supersedes IMP-007.

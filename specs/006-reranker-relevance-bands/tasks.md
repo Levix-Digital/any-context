@@ -32,7 +32,7 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 - [x] T010 [P] ADR-0158 (amends ADR-0157); `retrieval.md`, `commands.md`, benchmark page edited in place; TECDOC index; `check_docs`
 - [x] T011 [P] `tests/MANUAL_TESTS.md`: band counts in `/status` for a question with no answer; `manual_tests validate`
 - [ ] T012 Benchmark: CI lexical and dense results in `research.md`; baselines refreshed from the CI run
-- [ ] T013 Backlog: IMP-044 closed; `cargo test --workspace`, `check_design`, gate checks
+- [x] T013 Backlog: IMP-044 closed; `cargo test --workspace`, `check_design`, gate checks
 - [ ] T014 Plan milestones marked, plan completed
 
 **Checkpoint (M3)**: documented, measured, ready for the pull request.
