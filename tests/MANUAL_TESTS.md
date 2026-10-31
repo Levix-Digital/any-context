@@ -605,6 +605,19 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
+### MT-ANS-013: Answers use every relevant part of one document, and a copied passage once
+
+- **Covers**: selection by relevance bands and token budget, no per-file limit, near-identical chunks once, no truncated excerpt
+- **Prerequisites**: the re-ranker installed; a workspace with one Markdown file of eight short sections, each giving one rule of a fictitious travel policy (for example, "Rule 5: taxis are refunded up to 80 per trip"), and a copy of that file under another name
+- **Steps**:
+  1. Ask: "List every rule of the travel policy."
+  2. Ask: "What is the taxi refund limit?"
+- **Expected**:
+  - Step 1: the answer lists more than three rules from the same file (no per-file limit), and no rule appears twice because of the copy.
+  - Step 2: the answer gives the limit from rule 5; no quoted excerpt ends with "[...additional snippet condensed for density limit...]".
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
 ## Local Re-Ranking and Models
 
 ### MT-MOD-001: The local re-ranker is always on and reports its state

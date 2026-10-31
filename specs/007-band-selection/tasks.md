@@ -12,7 +12,7 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 
 - [ ] T001 [US1] [US2] [US3] `retrieval/selection.rs`: `select`, near-duplicate check, `SelectionCounts`; unit tests
 - [ ] T002 [US4] `retrieval/requests.rs`: `token_budget` per builder (Fast 4,000, Deep 6,000, tool 3,000); tests
-- [ ] T003 [US1] `retrieval/pipeline.rs`: `token_budget` on `HybridSearchRequest`, selection step in `fuse_and_rerank`, `RetrievalOutput::selection`, debug log
+- [ ] T003 [US1] `retrieval/pipeline.rs`: `token_budget` on `HybridSearchRequest`, selection step in `fuse_and_rerank`, `RetrievalOutput::selection`
 - [ ] T004 [US1] Remove `RetrievalPreset`, `top_k`, `max_chunks_per_source`, `max_density_chars`, `apply_density_budget` and their re-exports; `apply_source_cap` documented as reranker input slots
 - [ ] T005 [US1] [US5] Pipeline tests: band order and budget, no condensed marker, reranker unavailable, batch
 

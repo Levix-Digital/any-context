@@ -62,7 +62,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 3, Duplicates and versions (audit P17). A language-independent fingerprint (MinHash/SimHash) groups near-duplicate documents into a version family at the document level. The current version is the one with the most recent document date (mtime as tiebreaker); previous ones stay indexed and marked. The user can split wrong groups and join undetected versions. Retrieval use belongs to the retrieval batch.
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 3, Duplicates and versions (audit P17). A language-independent fingerprint (MinHash/SimHash) groups near-duplicate documents into a version family at the document level. The current version is the one with the most recent document date (mtime as tiebreaker); previous ones stay indexed and marked. The user can split wrong groups and join undetected versions. Retrieval use belongs to the retrieval batch; from IMP-045 (ADR-0159): it also delivers the selection rule "current version only" (previous versions only in comparison questions), since the selection has no version data before it.
 
 ### FEAT-028: [ingestion] Parsers for legacy Office, ODF and RTF
 - **Priority**: medium
