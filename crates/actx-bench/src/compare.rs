@@ -1,6 +1,6 @@
 //! Comparison of a run with the baseline, the regression gate and the Markdown summary.
 
-use crate::metrics::{Metrics, PASSAGE_DEPTH};
+use crate::metrics::{calibration, CalibrationRow, Metrics, PASSAGE_DEPTH};
 use crate::result::RunResult;
 
 /// A drop larger than this in a gated metric fails the run (decided 2026-10-25).
@@ -76,7 +76,7 @@ fn rows(b: &Metrics, c: &Metrics) -> Vec<Delta> {
         row("mrr_at_10", b.mrr_at_10, c.mrr_at_10, true),
         row("ndcg_at_10", b.ndcg_at_10, c.ndcg_at_10, false),
         row("passage_hit_rate_at_5", b.passage_hit_rate_at_5, c.passage_hit_rate_at_5, false),
-        row("delivered_hit_rate", b.delivered_hit_rate, c.delivered_hit_rate, false),
+        row("delivered_hit_rate", b.delivered_hit_rate, c.delivered_hit_rate, true),
         row("nothing_found_rate", b.nothing_found_rate, c.nothing_found_rate, false),
         row("false_nothing_found_rate", b.false_nothing_found_rate, c.false_nothing_found_rate, false),
     ]
@@ -99,7 +99,7 @@ pub fn summary(current: &RunResult, comparison: Option<&Comparison>) -> String {
             }
             out.push_str(&format!("\nRegressed at 5: {}\n\nImproved at 5: {}\n", list(regressed), list(improved)));
             let verdict = if comparison.is_some_and(Comparison::failed) {
-                format!("\n**Regression**: a gated metric (MRR@10 or HitRate@5) dropped more than {MAX_DROP}.\n")
+                format!("\n**Regression**: a gated metric (MRR@10, HitRate@5 or the delivered hit rate) dropped more than {MAX_DROP}.\n")
             } else {
                 "\nNo regression.\n".to_string()
             };
@@ -114,10 +114,20 @@ pub fn summary(current: &RunResult, comparison: Option<&Comparison>) -> String {
             out.push_str(&metrics_table(m));
         }
     }
+    out.push_str(&calibration_table(&calibration(&current.questions)));
     out.push_str(&format!(
         "\nLatency (delivered pass, reported only): mean {:.1} ms, p95 {:.1} ms over {} questions.\n",
         current.latency_ms.mean, current.latency_ms.p95, current.latency_ms.questions
     ));
+    out
+}
+
+/// What each irrelevant threshold would cut on the ranking pass (IMP-044).
+fn calibration_table(rows: &[CalibrationRow]) -> String {
+    let mut out = "\nBand calibration (ranking pass, reranker scores):\n\n| irrelevant below | negatives with nothing | positives that lose the relevant document |\n|---:|---:|---:|\n".to_string();
+    for r in rows {
+        out.push_str(&format!("| {} | {} / {} | {} / {} |\n", r.threshold, r.negatives_empty, r.negatives, r.positives_lost, r.positives));
+    }
     out
 }
 
@@ -155,6 +165,7 @@ mod tests {
             delivered_hit: false,
             nothing_found: false,
             ranked: vec![],
+            best_relevant_score: None,
         }
     }
 
@@ -192,6 +203,18 @@ mod tests {
         ] {
             let cmp = compare(&base, &run(mrr, hit5, vec![]));
             assert_eq!(cmp.failed(), failed, "mrr {mrr} hit5 {hit5}");
+        }
+    }
+
+    /// IMP-044: the relevance cut must not drop the relevant documents the answer receives.
+    #[test]
+    fn a_delivered_hit_rate_drop_fails_the_run() {
+        let mut base = run(0.8, 0.9, vec![]);
+        base.metrics.overall.delivered_hit_rate = 1.0;
+        for (delivered, failed) in [(0.98, false), (0.97, true)] {
+            let mut current = run(0.8, 0.9, vec![]);
+            current.metrics.overall.delivered_hit_rate = delivered;
+            assert_eq!(compare(&base, &current).failed(), failed, "delivered {delivered}");
         }
     }
 

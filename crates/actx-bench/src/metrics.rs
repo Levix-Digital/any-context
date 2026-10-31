@@ -51,11 +51,20 @@ pub struct QuestionResult {
     pub delivered_hit: bool,
     pub nothing_found: bool,
     pub ranked: Vec<RankedDoc>,
+    /// Best reranker score of a relevant document in the top 10 of the ranking pass (which keeps
+    /// irrelevant chunks), for the band calibration; `None` when negative or missing (IMP-044).
+    #[serde(default)]
+    pub best_relevant_score: Option<f64>,
 }
 
 impl QuestionResult {
     pub fn is_negative(&self) -> bool {
         self.category == "negative"
+    }
+
+    /// Best score of the ranking pass, relevant or not.
+    pub fn top_score(&self) -> Option<f64> {
+        self.ranked.first().map(|d| d.score)
     }
 
     pub fn hit_at(&self, k: usize) -> bool {
@@ -94,6 +103,36 @@ pub struct Latency {
     pub questions: usize,
 }
 
+/// Irrelevant thresholds the calibration table tries (IMP-044).
+pub const CALIBRATION_THRESHOLDS: [f64; 5] = [0.005, 0.01, 0.02, 0.03, 0.05];
+
+/// What one irrelevant threshold would do to the ranking pass of a run.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CalibrationRow {
+    pub threshold: f64,
+    /// Negatives whose best score is below the threshold: nothing would be delivered.
+    pub negatives_empty: usize,
+    pub negatives: usize,
+    /// Positives with no relevant document at or above the threshold (or none in the top 10).
+    pub positives_lost: usize,
+    pub positives: usize,
+}
+
+/// The calibration table of the band thresholds over the scored questions (IMP-044).
+pub fn calibration(results: &[QuestionResult]) -> Vec<CalibrationRow> {
+    let (negatives, positives): (Vec<&QuestionResult>, Vec<&QuestionResult>) = results.iter().partition(|r| r.is_negative());
+    CALIBRATION_THRESHOLDS
+        .iter()
+        .map(|&t| CalibrationRow {
+            threshold: t,
+            negatives_empty: negatives.iter().filter(|r| r.top_score().is_none_or(|s| s < t)).count(),
+            negatives: negatives.len(),
+            positives_lost: positives.iter().filter(|r| r.best_relevant_score.is_none_or(|s| s < t)).count(),
+            positives: positives.len(),
+        })
+        .collect()
+}
+
 /// Scores one question.
 pub fn score(outcome: &Outcome) -> QuestionResult {
     let grade = |doc: &str| outcome.relevant.iter().filter(|(d, _)| d == doc).map(|(_, g)| *g).max().unwrap_or(0);
@@ -128,6 +167,11 @@ pub fn score(outcome: &Outcome) -> QuestionResult {
         passage_hit_at_5,
         delivered_hit: !outcome.negative && outcome.delivered.iter().any(|d| grade(d) > 0),
         nothing_found: outcome.delivered.is_empty(),
+        best_relevant_score: if outcome.negative {
+            None
+        } else {
+            top.iter().filter(|d| grade(&d.doc) > 0).map(|d| round4(d.score)).reduce(f64::max)
+        },
         ranked: top.into_iter().map(|d| RankedDoc { doc: d.doc.clone(), score: round4(d.score) }).collect(),
     }
 }
@@ -228,6 +272,32 @@ mod tests {
             delivered: delivered.iter().map(|d| d.to_string()).collect(),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn the_best_relevant_score_comes_from_the_ranking_pass() {
+        let r = score(&positive("q", &[("b", 3), ("c", 1)], &["a", "b", "c"]));
+        assert_eq!(r.best_relevant_score, Some(0.9));
+        assert_eq!(r.top_score(), Some(1.0));
+        assert_eq!(score(&positive("q", &[("x", 3)], &["a"])).best_relevant_score, None);
+        assert_eq!(score(&negative("n", &[])).best_relevant_score, None);
+    }
+
+    #[test]
+    fn calibration_counts_empty_negatives_and_lost_positives() {
+        let mut low = score(&positive("low", &[("a", 3)], &["a"]));
+        low.best_relevant_score = Some(0.015);
+        let high = score(&positive("high", &[("a", 3)], &["a"]));
+        let missing = score(&positive("missing", &[("x", 3)], &["a"]));
+        let mut weak = score(&negative("weak", &[]));
+        weak.ranked = vec![RankedDoc { doc: "a".into(), score: 0.008 }];
+        let empty = score(&negative("empty", &[]));
+        let rows = calibration(&[low, high, missing, weak, empty]);
+        assert_eq!(rows.len(), CALIBRATION_THRESHOLDS.len());
+        let at = |t: f64| rows.iter().find(|r| r.threshold == t).unwrap().clone();
+        assert_eq!(at(0.005), CalibrationRow { threshold: 0.005, negatives_empty: 1, negatives: 2, positives_lost: 1, positives: 3 });
+        assert_eq!((at(0.01).negatives_empty, at(0.01).positives_lost), (2, 1));
+        assert_eq!((at(0.02).negatives_empty, at(0.02).positives_lost), (2, 2));
     }
 
     #[test]

@@ -1860,11 +1860,17 @@ impl CommandEngine {
             .map(|(ms, n)| format!("{ms} ms for {n} candidates"))
             .unwrap_or_else(|| "n/a (no pass yet in this session)".to_string());
         format!(
-            "`{}` — {state} │ depth {}/{} (Fast/Deep) │ last pass {last}",
+            "`{}` — {state} │ depth {}/{} (Fast/Deep) │ last pass {last}{}",
             spec.id,
             profile_depth(tier, SearchMode::Fast),
-            profile_depth(tier, SearchMode::Deep)
+            profile_depth(tier, SearchMode::Deep),
+            Self::bands_suffix(crate::retrieval::last_band_counts())
         )
+    }
+
+    /// ` │ bands <r> relevant / <m> maybe / <i> irrelevant` for a banded pass, else empty (IMP-044).
+    pub fn bands_suffix(bands: Option<crate::retrieval::BandCounts>) -> String {
+        bands.map(|b| format!(" │ bands {}", b.describe())).unwrap_or_default()
     }
 
     fn execute_inspect(args: &[&str], ctx: &ExecutionContext) -> CommandResult {

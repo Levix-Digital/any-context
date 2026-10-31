@@ -699,6 +699,16 @@ fn test_status_shows_the_reranker() {
     let line = res.message.lines().find(|l| l.contains("Reranker:")).expect("a Reranker line");
     assert!(line.contains("(Fast/Deep)"), "{line}");
     assert!(line.contains("last pass"), "{line}");
+    assert!(!line.contains("bands"), "no band counts before a banded pass: {line}");
+}
+
+/// IMP-044: the reranker line ends with the band counts of a banded pass.
+#[test]
+fn test_status_band_counts_suffix() {
+    use any_context_core_rs::retrieval::BandCounts;
+    let counts = BandCounts { relevant: 3, maybe: 2, irrelevant: 7 };
+    assert_eq!(CommandEngine::bands_suffix(Some(counts)), " │ bands 3 relevant / 2 maybe / 7 irrelevant");
+    assert_eq!(CommandEngine::bands_suffix(None), "");
 }
 
 
