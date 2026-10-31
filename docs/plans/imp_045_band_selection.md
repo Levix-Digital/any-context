@@ -3,10 +3,10 @@ plan_id: imp_045_band_selection
 project: any-context
 title: Selection by relevance bands and the token budget
 version: v1.0.0
-status: active
+status: in_progress
 author: LeviGuilherme
 created_at: '2026-10-31T13:40:41'
-updated_at: '2026-10-31T13:40:41'
+updated_at: '2026-10-31T14:49:45'
 session_id: null
 tags:
 - retrieval
@@ -19,9 +19,13 @@ backlog_items:
 spec_dir: specs/007-band-selection
 milestones:
 - name: M1 Core
-  done: false
+  done: true
+  done_at: '2026-10-31'
+  by: LeviGuilherme
 - name: M2 Benchmark
-  done: false
+  done: true
+  done_at: '2026-10-31'
+  by: LeviGuilherme
 - name: M3 Docs and checks
   done: false
 status_log:
@@ -29,6 +33,12 @@ status_log:
   by: LeviGuilherme
   status: active
   note: Plan created
+- at: '2026-10-31T14:49:45'
+  by: LeviGuilherme
+  note: 'Milestone ''M1 Core'' completed: PR #391'
+- at: '2026-10-31T14:49:45'
+  by: LeviGuilherme
+  note: 'Milestone ''M2 Benchmark'' completed: PR #391, local lexical run'
 ---
 
 # Selection by relevance bands and the token budget
