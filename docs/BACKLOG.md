@@ -1251,9 +1251,9 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-045: [retrieval] Selection by relevance bands and the token budget
 - **Priority**: medium
-- **Status**: open
+- **Status**: planned
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
-- **Plan**: -
+- **Plan**: imp_045_band_selection
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 7, Selection. Chunks of the relevant band enter, then the best of the maybe band, up to a context token budget set by AnyContext from the chat model and the mode (typically 3 to 5 chunks with parents in Fast). Near-identical chunks deduplicated, current version only (previous ones in comparisons), no hard per-file limit. Acceptance: the fixed top-k (10/20/40), per-file caps (2/3/5) and character ceilings (20/40/60 thousand) are removed.
 
 ### IMP-046: [retrieval] Nothing-found and weak-evidence gate by reranker bands
