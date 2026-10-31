@@ -1,3 +1,7 @@
+//! Per-document slots at the reranker input (IMP-042): a few candidates per document, so one
+//! long file cannot take every slot the cross-encoder scores. The final selection has no per-file
+//! limit (IMP-045, `selection.rs`).
+
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
@@ -23,7 +27,8 @@ fn source_id(c: &RankedChunk) -> &str {
     }
 }
 
-/// Selects up to `target_k` chunks from a score-ordered list, at most `max_per_source` per source.
+/// Selects up to `target_k` chunks from a score-ordered list, at most `max_per_source` per source
+/// (used for the reranker input slots only).
 /// When fewer than `target_k` are selected, the skipped chunks fill the remaining slots, so the cap
 /// gives other sources priority without leaving a slot empty. The selection keeps the input order;
 /// `max_per_source = 0` means no cap (ADR-0139).
@@ -63,35 +68,6 @@ pub fn apply_source_cap(
         .zip(keep)
         .filter_map(|(c, k)| k.then_some(c))
         .collect()
-}
-
-/// Enforces a strict density budget in characters, condensing trailing chunks if needed.
-pub fn apply_density_budget(chunks: Vec<RankedChunk>, max_chars: usize) -> Vec<RankedChunk> {
-    if chunks.is_empty() {
-        return Vec::new();
-    }
-
-    let mut budgeted = Vec::new();
-    let mut accumulated_chars = 0;
-
-    for (i, mut c) in chunks.into_iter().enumerate() {
-        let chunk_len = c.text.len();
-        if accumulated_chars + chunk_len > max_chars && i >= 3 {
-            let remaining_space = max_chars.saturating_sub(accumulated_chars);
-            if remaining_space > 200 {
-                let mut truncated = c.text.chars().take(remaining_space).collect::<String>();
-                truncated.push_str("\n[...additional snippet condensed for density limit...]");
-                c.text = truncated;
-                budgeted.push(c);
-            }
-            break;
-        }
-
-        accumulated_chars += chunk_len;
-        budgeted.push(c);
-    }
-
-    budgeted
 }
 
 #[cfg(test)]

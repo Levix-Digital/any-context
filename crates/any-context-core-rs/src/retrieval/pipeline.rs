@@ -2,7 +2,7 @@
 //! (Deep). Each question gives clean ranked lists (dense per workspace, Okapi BM25, file-name and
 //! date matches); all lists of the search enter one Reciprocal Rank Fusion; one cross-encoder pass
 //! rescores the best candidates, a few per document, up to a depth set by the mode, the hardware
-//! profile and a time budget; a per-source cap and a character budget select the result.
+//! profile and a time budget; its relevance bands and the mode's token budget select the result.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -17,90 +17,11 @@ use crate::retrieval::filter::RetrievalFilter;
 use crate::retrieval::relevance::{BandCounts, RelevanceBand, RelevanceThresholds};
 use crate::retrieval::rerank_depth;
 use crate::retrieval::rrf::{self, RankedList};
-use crate::retrieval::diversifier::{RankedChunk, apply_source_cap, apply_density_budget};
+use crate::retrieval::diversifier::{RankedChunk, apply_source_cap};
+use crate::retrieval::selection::{self, Candidate, SelectionCounts};
 use crate::retrieval::query::QueryPreprocessor;
 use crate::retrieval::token_budget::estimate_token_count;
 use actx_lm::traits::LmProvider;
-
-/// Preset profiles for hybrid retrieval and RAG candidate boundaries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RetrievalPreset {
-    Turbo,
-    Balanced,
-    Deep,
-}
-
-impl Default for RetrievalPreset {
-    fn default() -> Self {
-        Self::Balanced
-    }
-}
-
-impl RetrievalPreset {
-    pub fn from_str(s: &str) -> Self {
-        match s.to_lowercase().trim() {
-            "turbo" | "fast" => Self::Turbo,
-            "deep" | "deep_research" | "research" => Self::Deep,
-            _ => Self::Balanced,
-        }
-    }
-
-    pub fn candidate_pool_k(&self) -> usize {
-        match self {
-            Self::Turbo => 50,
-            Self::Balanced => 100,
-            Self::Deep => 150,
-        }
-    }
-
-    pub fn top_k(&self) -> usize {
-        match self {
-            Self::Turbo => 10,
-            Self::Balanced => 20,
-            Self::Deep => 40,
-        }
-    }
-
-    pub fn max_chunks_per_source(&self) -> usize {
-        match self {
-            Self::Turbo => 2,
-            Self::Balanced => 3,
-            Self::Deep => 5,
-        }
-    }
-
-    pub fn max_density_chars(&self) -> usize {
-        match self {
-            Self::Turbo => 20_000,
-            Self::Balanced => 40_000,
-            Self::Deep => 60_000,
-        }
-    }
-
-    pub fn rrf_k(&self) -> usize {
-        60
-    }
-
-    pub fn build_request(&self, query_text: impl Into<String>, workspace: Option<String>) -> HybridSearchRequest {
-        HybridSearchRequest {
-            sub_query_id: None,
-            query_text: query_text.into(),
-            query_vector: None,
-            workspace,
-            target_workspaces: Vec::new(),
-            linked_sources: Vec::new(),
-            top_k: self.top_k(),
-            candidate_pool_k: self.candidate_pool_k(),
-            max_chunks_per_source: self.max_chunks_per_source(),
-            max_density_chars: self.max_density_chars(),
-            table_name: "workspace_chunks".to_string(),
-            rrf_k: self.rrf_k(),
-            rerank_depth: rerank_depth::DEFAULT_RERANK_DEPTH,
-            rerank_budget_ms: None,
-            filter: RetrievalFilter::default(),
-        }
-    }
-}
 
 /// Request payload for native hybrid retrieval.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,10 +32,11 @@ pub struct HybridSearchRequest {
     pub workspace: Option<String>,
     pub target_workspaces: Vec<String>,
     pub linked_sources: Vec<String>,
-    pub top_k: usize,
     pub candidate_pool_k: usize,
-    pub max_chunks_per_source: usize,
-    pub max_density_chars: usize,
+    /// Most estimated tokens of evidence the selection may take (IMP-045); set per mode by the
+    /// request builders.
+    #[serde(default = "default_token_budget")]
+    pub token_budget: usize,
     pub table_name: String,
     pub rrf_k: usize,
     /// Fused candidates the cross-encoder scores in this search, before the time budget (IMP-042).
@@ -129,12 +51,6 @@ pub struct HybridSearchRequest {
     pub filter: RetrievalFilter,
 }
 
-impl HybridSearchRequest {
-    pub fn from_preset(preset: RetrievalPreset, query_text: impl Into<String>, workspace: Option<String>) -> Self {
-        preset.build_request(query_text, workspace)
-    }
-}
-
 impl Default for HybridSearchRequest {
     fn default() -> Self {
         Self {
@@ -144,10 +60,8 @@ impl Default for HybridSearchRequest {
             workspace: None,
             target_workspaces: Vec::new(),
             linked_sources: Vec::new(),
-            top_k: 20,
             candidate_pool_k: 100,
-            max_chunks_per_source: 3,
-            max_density_chars: 40_000,
+            token_budget: default_token_budget(),
             table_name: "workspace_chunks".to_string(),
             rrf_k: 60,
             rerank_depth: rerank_depth::DEFAULT_RERANK_DEPTH,
@@ -159,6 +73,10 @@ impl Default for HybridSearchRequest {
 
 fn default_rerank_depth() -> usize {
     rerank_depth::DEFAULT_RERANK_DEPTH
+}
+
+fn default_token_budget() -> usize {
+    crate::retrieval::requests::FAST_TOKEN_BUDGET
 }
 
 /// Scored, diversified, and deduplicated chunk result with complete provenance.
@@ -323,6 +241,8 @@ pub struct RetrievalOutput {
     pub rerank: RerankOutcome,
     /// Band counts of the reranking pass; `None` when nothing was banded (IMP-044).
     pub bands: Option<BandCounts>,
+    /// What the selection did: chunks and tokens taken, budget skips, near-duplicates (IMP-045).
+    pub selection: SelectionCounts,
 }
 
 impl RetrievalOutput {
@@ -524,7 +444,7 @@ fn rerank_picks(
         .collect()
 }
 
-/// The fields the per-source cap and the character budget read.
+/// The fields the per-document slots of the reranker input read.
 fn ranked(c: &HybridSearchResult) -> RankedChunk {
     RankedChunk {
         id: c.chunk_id.clone(),
@@ -1151,23 +1071,15 @@ impl NativeHybridPipeline {
         }
         results.sort_by(compare_by_relevance);
 
-        // Selection, once, with the first request's values (IMP-045 replaces it).
-        let capped = apply_source_cap(results.iter().map(ranked).collect(), first.max_chunks_per_source, first.top_k);
-        let budgeted = apply_density_budget(capped, first.max_density_chars);
-        let mut by_id: HashMap<String, HybridSearchResult> = results.into_iter().map(|c| (c.chunk_id.clone(), c)).collect();
-        let mut final_results = Vec::with_capacity(budgeted.len());
-        for rc in budgeted {
-            if let Some(mut full) = by_id.remove(&rc.id) {
-                // The last chunk may have been condensed to fit the character budget.
-                if full.text != rc.text {
-                    full.token_count = estimate_token_count(&rc.text);
-                    full.text = rc.text;
-                }
-                final_results.push(full);
-            }
-        }
+        // Selection, once, with the first request's budget: relevance order (pinned, relevant,
+        // maybe), near-identical texts once, whole chunks within the token budget (IMP-045).
+        let candidates: Vec<Candidate<'_>> = results.iter().map(|c| Candidate { text: &c.text, tokens: c.token_count }).collect();
+        let (picked, selection) = selection::select(&candidates, first.token_budget);
+        drop(candidates);
+        let mut slots: Vec<Option<HybridSearchResult>> = results.into_iter().map(Some).collect();
+        let final_results: Vec<HybridSearchResult> = picked.into_iter().filter_map(|i| slots[i].take()).collect();
 
-        RetrievalOutput { results: final_results, dense, rerank, bands }
+        RetrievalOutput { results: final_results, dense, rerank, bands, selection }
     }
 
     /// Reads the stored rows of `ids` from LanceDB, keyed by chunk id and normalized file path
@@ -1233,7 +1145,7 @@ impl NativeHybridPipeline {
         requests: &[HybridSearchRequest],
     ) -> Result<RetrievalOutput, String> {
         if requests.is_empty() {
-            return Ok(RetrievalOutput { results: Vec::new(), dense: QueryEmbeddingOutcome::Dense, rerank: RerankOutcome::NotNeeded, bands: None });
+            return Ok(RetrievalOutput { results: Vec::new(), dense: QueryEmbeddingOutcome::Dense, rerank: RerankOutcome::NotNeeded, bands: None, selection: SelectionCounts::default() });
         }
         let futures: Vec<_> = requests.iter().enumerate().map(|(q, req)| self.collect_lists(req, q)).collect();
         let per_query = futures::future::join_all(futures).await.into_iter().collect::<Result<Vec<_>, _>>()?;
@@ -1340,27 +1252,6 @@ mod tests {
         assert!(top_match.matched_subqueries.contains(&"sub-2".to_string()));
 
         let _ = std::fs::remove_dir_all(temp_dir);
-    }
-
-    #[test]
-    fn test_retrieval_presets() {
-        let p_turbo = RetrievalPreset::from_str("turbo");
-        assert_eq!(p_turbo, RetrievalPreset::Turbo);
-        assert_eq!(p_turbo.top_k(), 10);
-        assert_eq!(p_turbo.candidate_pool_k(), 50);
-
-        let p_deep = RetrievalPreset::from_str("deep_research");
-        assert_eq!(p_deep, RetrievalPreset::Deep);
-        assert_eq!(p_deep.top_k(), 40);
-        assert_eq!(p_deep.candidate_pool_k(), 150);
-
-        let p_bal = RetrievalPreset::from_str("other");
-        assert_eq!(p_bal, RetrievalPreset::Balanced);
-
-        let req = HybridSearchRequest::from_preset(p_turbo, "auth logic", Some("Security".to_string()));
-        assert_eq!(req.top_k, 10);
-        assert_eq!(req.candidate_pool_k, 50);
-        assert_eq!(req.workspace.as_deref(), Some("Security"));
     }
 
     #[test]
@@ -1636,7 +1527,6 @@ mod tests {
                     query_text: "kestrel timeouts other.md".to_string(),
                     query_vector: Some(vec![1.0, 0.0, 0.0, 0.0]),
                     workspace: workspace.clone(),
-                    top_k: 8,
                     candidate_pool_k: 30,
                     ..Default::default()
                 })
@@ -1829,7 +1719,7 @@ mod tests {
     #[test]
     fn no_candidate_is_dropped_by_its_rrf_score() {
         let chunks: Vec<(String, String, String)> = (0..30)
-            .map(|i| (format!("h{i:02}"), format!("heron {}", "wading ".repeat(i + 1)), format!("h{i:02}.md")))
+            .map(|i| (format!("h{i:02}"), format!("heron {}site {i}", "wading ".repeat(i + 1)), format!("h{i:02}.md")))
             .collect();
         let refs: Vec<(&str, &str, &str, &str)> =
             chunks.iter().map(|(id, text, file)| (id.as_str(), text.as_str(), file.as_str(), SAME_DAY)).collect();
@@ -1837,9 +1727,8 @@ mod tests {
         let results = pipeline
             .retrieve_hybrid_batch(vec![HybridSearchRequest {
                 query_text: "heron".to_string(),
-                top_k: 100,
                 candidate_pool_k: 30,
-                max_density_chars: usize::MAX,
+                token_budget: usize::MAX,
                 ..Default::default()
             }])
             .unwrap();
@@ -1966,6 +1855,78 @@ mod tests {
         assert_eq!(output.results.len(), 2, "{:?}", output.results);
         assert!(output.results.windows(2).all(|w| w[0].score >= w[1].score));
         assert!(output.rerank.answer_notice().is_none());
+    }
+
+    fn heron_chunks(n: usize, file: impl Fn(usize) -> String) -> Vec<(String, String, String)> {
+        (0..n)
+            .map(|i| (format!("h_{i}"), format!("heron nesting note {i} {}", "wetland survey detail ".repeat(i + 1)), file(i)))
+            .collect()
+    }
+
+    async fn search_herons(name: &str, chunks: &[(String, String, String)], token_budget: usize) -> RetrievalOutput {
+        let refs: Vec<(&str, &str, &str, &str)> = chunks.iter().map(|(id, t, f)| (id.as_str(), t.as_str(), f.as_str(), SAME_DAY)).collect();
+        let (pipeline, dir) = bm25_pipeline(name, &refs);
+        let req = HybridSearchRequest { query_text: "heron".into(), token_budget, ..Default::default() };
+        let output = pipeline.search_with_outcome(&req).await.unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+        output
+    }
+
+    /// IMP-045: one file can give every chunk that fits; no fixed count and no per-file limit.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn selection_has_no_fixed_count_and_no_per_file_limit() {
+        let chunks = heron_chunks(12, |_| "a.md".to_string());
+        let output = search_herons("sel_one_file", &chunks, usize::MAX).await;
+        assert_eq!(output.results.len(), 12, "every chunk of the one file enters");
+        assert_eq!(output.selection.selected, 12);
+        assert_eq!(output.selection.tokens, output.results.iter().map(|c| c.token_count).sum::<usize>());
+    }
+
+    /// IMP-045: the selection stays within the token budget, in relevance order, skipping whole
+    /// chunks; no chunk is condensed (SC-001, SC-004). Without a reranker the fused order is used.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn selection_stays_within_the_token_budget_without_cutting_a_chunk() {
+        let chunks = heron_chunks(12, |i| format!("f{i}.md"));
+        let all = search_herons("sel_all", &chunks, usize::MAX).await;
+        let budget = all.results.iter().take(3).map(|c| c.token_count).sum::<usize>();
+        let output = search_herons("sel_budget", &chunks, budget).await;
+
+        assert!(matches!(output.rerank, RerankOutcome::Unavailable(_)));
+        assert!(output.selection.tokens <= budget, "{:?}", output.selection);
+        assert!(output.results.len() >= 3 && output.results.len() < 12);
+        assert!(output.selection.over_budget > 0);
+        let order: Vec<&str> = all.results.iter().map(|c| c.chunk_id.as_str()).collect();
+        let picked: Vec<usize> = output.results.iter().map(|c| order.iter().position(|id| *id == c.chunk_id).unwrap()).collect();
+        assert!(picked.windows(2).all(|w| w[0] < w[1]), "fused order kept: {picked:?}");
+        for c in &output.results {
+            let original = chunks.iter().find(|(id, _, _)| *id == c.chunk_id).unwrap();
+            assert_eq!(c.text, original.1, "chunks enter whole");
+            assert!(!c.text.contains("condensed"));
+        }
+    }
+
+    /// IMP-045: a first chunk larger than the budget still enters, whole and alone.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn an_oversized_first_chunk_enters_whole() {
+        let chunks = heron_chunks(3, |i| format!("f{i}.md"));
+        let output = search_herons("sel_oversized", &chunks, 1).await;
+        assert_eq!(output.results.len(), 1);
+        assert_eq!(output.selection.over_budget, 2);
+    }
+
+    /// IMP-045: the same passage in two files enters once.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_same_passage_in_two_files_enters_once() {
+        let text = "heron colony counts for the northern marsh in spring".to_string();
+        let chunks = vec![
+            ("copy_a".to_string(), text.clone(), "a.md".to_string()),
+            ("copy_b".to_string(), text.to_uppercase(), "b.md".to_string()),
+            ("other".to_string(), "heron feeding habits along the river".to_string(), "c.md".to_string()),
+        ];
+        let output = search_herons("sel_dedup", &chunks, usize::MAX).await;
+        assert_eq!(output.results.len(), 2, "{:?}", output.results.iter().map(|c| &c.chunk_id).collect::<Vec<_>>());
+        assert_eq!(output.selection.duplicates, 1);
+        assert!(output.results.iter().any(|c| c.chunk_id == "other"));
     }
 
     const BANDS: RelevanceThresholds = RelevanceThresholds { irrelevant_below: 0.005, relevant_from: 0.6 };
@@ -2139,13 +2100,14 @@ mod tests {
             dense: QueryEmbeddingOutcome::NoProvider,
             rerank: RerankOutcome::Unavailable("the ONNX Runtime library is missing".into()),
             bands: None,
+            selection: SelectionCounts::default(),
         };
         let notices = output.notices().unwrap();
         let lines: Vec<&str> = notices.lines().collect();
         assert_eq!(lines.len(), 2);
         assert!(lines[0].starts_with("Answered by keyword search only"));
         assert!(lines[1].starts_with("Answered without relevance ranking"));
-        let clean = RetrievalOutput { results: Vec::new(), dense: QueryEmbeddingOutcome::Dense, rerank: RerankOutcome::Scored, bands: None };
+        let clean = RetrievalOutput { results: Vec::new(), dense: QueryEmbeddingOutcome::Dense, rerank: RerankOutcome::Scored, bands: None, selection: SelectionCounts::default() };
         assert_eq!(clean.notices(), None);
     }
 
@@ -2340,7 +2302,6 @@ mod tests {
         let results = pipeline
             .search(HybridSearchRequest {
                 query_text: "kestrel timeouts".to_string(),
-                top_k: 8,
                 candidate_pool_k: 30,
                 ..Default::default()
             })
@@ -2403,7 +2364,6 @@ mod tests {
         let results = pipeline
             .search(HybridSearchRequest {
                 query_text: "onde ficam as notas".to_string(),
-                top_k: 8,
                 candidate_pool_k: 30,
                 ..Default::default()
             })
@@ -2443,7 +2403,6 @@ mod tests {
             query_vector: Some(vec![0.8, 0.6, 0.0, 0.0]),
             workspace: Some(workspace.to_string()),
             target_workspaces: vec!["Global".to_string()],
-            top_k: 8,
             candidate_pool_k: 30,
             ..Default::default()
         }
@@ -2501,11 +2460,11 @@ mod tests {
             rows.push(row);
         };
         for i in 0..40 {
-            add(format!("big_{i:02}"), "invoice invoice invoice payment terms", &format!("/data/big/b{i:02}.md"),
+            add(format!("big_{i:02}"), &format!("invoice invoice invoice payment terms of batch {i}"), &format!("/data/big/b{i:02}.md"),
                 "2025-01-01T00:00:00+00:00", "markdown", vec![1.0, 0.01 * i as f32, 0.0, 0.0]);
         }
         for i in 0..3 {
-            add(format!("small_{i}"), "a note that mentions an invoice once among warehouse staff matters",
+            add(format!("small_{i}"), &format!("note {i} mentions an invoice once among warehouse staff matters"),
                 &format!("/data/small/s{i}.md"), "2025-06-01T00:00:00+00:00", "code", vec![0.0, 0.0, 1.0, 0.1 * i as f32]);
         }
         pipeline.lance_store.upsert_records(rows, None, Some(4)).unwrap();
@@ -2517,9 +2476,7 @@ mod tests {
             query_text: "invoice".to_string(),
             query_vector: Some(vec![1.0, 0.0, 0.0, 0.0]),
             candidate_pool_k: 30,
-            top_k: 100,
-            max_chunks_per_source: 100,
-            max_density_chars: 1_000_000,
+            token_budget: usize::MAX,
             filter,
             ..Default::default()
         }

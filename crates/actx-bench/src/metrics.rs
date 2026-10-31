@@ -34,6 +34,9 @@ pub struct Outcome {
     pub ranked_chunks: Vec<String>,
     /// Documents of the delivered pass (the product's request as is).
     pub delivered: Vec<String>,
+    /// Chunks and estimated tokens the delivered pass selected (IMP-045).
+    pub delivered_chunks: usize,
+    pub delivered_tokens: usize,
     pub latency_ms: f64,
 }
 
@@ -55,6 +58,11 @@ pub struct QuestionResult {
     /// irrelevant chunks), for the band calibration; `None` when negative or missing (IMP-044).
     #[serde(default)]
     pub best_relevant_score: Option<f64>,
+    /// Chunks and estimated tokens the delivered pass selected (IMP-045).
+    #[serde(default)]
+    pub delivered_chunks: usize,
+    #[serde(default)]
+    pub delivered_tokens: usize,
 }
 
 impl QuestionResult {
@@ -85,6 +93,12 @@ pub struct Metrics {
     pub delivered_hit_rate: f64,
     pub nothing_found_rate: f64,
     pub false_nothing_found_rate: f64,
+    /// Mean chunks and estimated tokens of the delivered pass, over every question (IMP-045);
+    /// reported, not gated.
+    #[serde(default)]
+    pub delivered_chunks_mean: f64,
+    #[serde(default)]
+    pub delivered_tokens_mean: f64,
     pub positives: usize,
     pub negatives: usize,
 }
@@ -173,6 +187,8 @@ pub fn score(outcome: &Outcome) -> QuestionResult {
             top.iter().filter(|d| grade(&d.doc) > 0).map(|d| round4(d.score)).reduce(f64::max)
         },
         ranked: top.into_iter().map(|d| RankedDoc { doc: d.doc.clone(), score: round4(d.score) }).collect(),
+        delivered_chunks: outcome.delivered_chunks,
+        delivered_tokens: outcome.delivered_tokens,
     }
 }
 
@@ -210,6 +226,8 @@ fn metrics(results: &[&QuestionResult]) -> Metrics {
         delivered_hit_rate: rate(positives.iter().filter(|r| r.delivered_hit).count(), positives.len()),
         nothing_found_rate: rate(negatives.iter().filter(|r| r.nothing_found).count(), negatives.len()),
         false_nothing_found_rate: rate(positives.iter().filter(|r| r.nothing_found).count(), positives.len()),
+        delivered_chunks_mean: mean(results.iter().map(|r| r.delivered_chunks as f64).sum(), results.len()),
+        delivered_tokens_mean: mean(results.iter().map(|r| r.delivered_tokens as f64).sum(), results.len()),
         positives: positives.len(),
         negatives: negatives.len(),
     }

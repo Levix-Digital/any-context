@@ -116,6 +116,10 @@ pub fn summary(current: &RunResult, comparison: Option<&Comparison>) -> String {
     }
     out.push_str(&calibration_table(&calibration(&current.questions)));
     out.push_str(&format!(
+        "\nSelection (delivered pass, reported only): {:.2} chunks and {:.0} tokens per question on average.\n",
+        m.delivered_chunks_mean, m.delivered_tokens_mean
+    ));
+    out.push_str(&format!(
         "\nLatency (delivered pass, reported only): mean {:.1} ms, p95 {:.1} ms over {} questions.\n",
         current.latency_ms.mean, current.latency_ms.p95, current.latency_ms.questions
     ));
@@ -166,6 +170,8 @@ mod tests {
             nothing_found: false,
             ranked: vec![],
             best_relevant_score: None,
+            delivered_chunks: 0,
+            delivered_tokens: 0,
         }
     }
 
