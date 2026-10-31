@@ -21,4 +21,13 @@ The last chunk that crosses the ceiling is truncated with "[...additional snippe
 
 ## Benchmark runs
 
-To be filled by T007 (Fast budgets 3,000, 4,000, 6,000; mmarco; lexical and dense).
+Local runs, lexical configuration (`lexical-rerank`, mmarco), 2026-10-31, ONNX Runtime 1.29 on the development container:
+
+| Revision | MRR@10 | HitRate@5 | delivered hit rate | nothing-found (negatives) | false nothing-found | delivered chunks / tokens (mean) |
+|---|---:|---:|---:|---:|---:|---|
+| dev `d801056` (before) | 0.9357 | 0.9571 | 0.9571 | 0.3333 | 0.0143 | not measured |
+| feat `6ef7dc2` (Fast budget 4,000) | 0.9357 | 0.9571 | 0.9571 | 0.3333 | 0.0143 | 4.62 / 418 |
+
+- Every question has the same first relevant rank, delivered hit and nothing-found outcome on both revisions: the selection loses nothing the old one delivered. The gap to the committed baseline (MRR 0.9500) is the same on both and comes from the local runtime, not from this change; the baselines are refreshed from the CI run.
+- The largest delivered context is 15 chunks and 2,213 estimated tokens: on this corpus (short chunks of about 90 tokens) the bands, not the budget, bound the selection. Budgets of 3,000, 4,000 and 6,000 give the same result, so the corpus cannot tell them apart; 4,000 stays (about today's 14,000 characters) and IMP-049 revisits it with the model window.
+- The dense configuration runs in CI on the pull request.
