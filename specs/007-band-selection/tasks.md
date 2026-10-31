@@ -32,4 +32,4 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 - [x] T010 [P] `tests/MANUAL_TESTS.md`: one long document, copied file
 - [x] T011 Backlog: close IMP-045; "current version only" added to FEAT-027's description
 - [x] T012 `cargo test --workspace`, `check_docs`, `manual_tests validate`, `check_design`
-- [ ] T013 Baselines refreshed from the CI RESULT-JSON; plan completed
+- [x] T013 Baselines refreshed from the CI RESULT-JSON; plan completed

@@ -11,7 +11,7 @@
     },
     "embedding_target": "local/bge-m3@1024",
     "reranker_model": "mmarco-reranker",
-    "code_revision": "872575d22906"
+    "code_revision": "736b29d8ad18"
   },
   "metrics": {
     "overall": {
@@ -25,6 +25,8 @@
       "delivered_hit_rate": 1.0,
       "nothing_found_rate": 0.1333,
       "false_nothing_found_rate": 0.0,
+      "delivered_chunks_mean": 6.9176,
+      "delivered_tokens_mean": 589.5529,
       "positives": 70,
       "negatives": 15
     },
@@ -40,6 +42,8 @@
         "delivered_hit_rate": 1.0,
         "nothing_found_rate": 0.25,
         "false_nothing_found_rate": 0.0,
+        "delivered_chunks_mean": 5.7714,
+        "delivered_tokens_mean": 570.9714,
         "positives": 27,
         "negatives": 8
       },
@@ -54,36 +58,42 @@
         "delivered_hit_rate": 1.0,
         "nothing_found_rate": 0.0,
         "false_nothing_found_rate": 0.0,
+        "delivered_chunks_mean": 7.72,
+        "delivered_tokens_mean": 602.56,
         "positives": 43,
         "negatives": 7
       }
     },
     "by_category": {
       "cross-language": {
-        "hit_rate_at_1": 1.0,
+        "hit_rate_at_1": 0.8333,
         "hit_rate_at_3": 1.0,
         "hit_rate_at_5": 1.0,
         "hit_rate_at_10": 1.0,
-        "mrr_at_10": 1.0,
-        "ndcg_at_10": 0.9947,
+        "mrr_at_10": 0.9167,
+        "ndcg_at_10": 0.9332,
         "passage_hit_rate_at_5": 1.0,
         "delivered_hit_rate": 1.0,
         "nothing_found_rate": 0.0,
         "false_nothing_found_rate": 0.0,
+        "delivered_chunks_mean": 8.3333,
+        "delivered_tokens_mean": 683.6667,
         "positives": 6,
         "negatives": 0
       },
       "factual": {
-        "hit_rate_at_1": 0.9412,
+        "hit_rate_at_1": 0.9608,
         "hit_rate_at_3": 1.0,
         "hit_rate_at_5": 1.0,
         "hit_rate_at_10": 1.0,
-        "mrr_at_10": 0.9706,
-        "ndcg_at_10": 0.975,
+        "mrr_at_10": 0.9804,
+        "ndcg_at_10": 0.9823,
         "passage_hit_rate_at_5": 1.0,
         "delivered_hit_rate": 1.0,
         "nothing_found_rate": 0.0,
         "false_nothing_found_rate": 0.0,
+        "delivered_chunks_mean": 6.6863,
+        "delivered_tokens_mean": 506.3529,
         "positives": 51,
         "negatives": 0
       },
@@ -98,6 +108,8 @@
         "delivered_hit_rate": 1.0,
         "nothing_found_rate": 0.0,
         "false_nothing_found_rate": 0.0,
+        "delivered_chunks_mean": 5.0,
+        "delivered_tokens_mean": 2200.6667,
         "positives": 3,
         "negatives": 0
       },
@@ -112,6 +124,8 @@
         "delivered_hit_rate": 0.0,
         "nothing_found_rate": 0.1333,
         "false_nothing_found_rate": 0.0,
+        "delivered_chunks_mean": 5.7333,
+        "delivered_tokens_mean": 360.8,
         "positives": 0,
         "negatives": 15
       },
@@ -126,14 +140,16 @@
         "delivered_hit_rate": 1.0,
         "nothing_found_rate": 0.0,
         "false_nothing_found_rate": 0.0,
+        "delivered_chunks_mean": 9.6,
+        "delivered_tokens_mean": 817.2,
         "positives": 10,
         "negatives": 0
       }
     }
   },
   "latency_ms": {
-    "mean": 1316.0011,
-    "p95": 2381.32,
+    "mean": 2137.3799,
+    "p95": 3632.4907,
     "questions": 85
   },
   "questions": [
@@ -153,22 +169,44 @@
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.997
+          "score": 0.998
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.9866
+          "score": 0.985
         },
         {
           "doc": "en/platform/api-rate-limits-v2.md",
-          "score": 0.3249
+          "score": 0.1065
         },
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.017
+          "score": 0.0217
+        },
+        {
+          "doc": "pt/ti/relatorio-incidente-2025-03.md",
+          "score": 0.0095
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-padrao.md",
+          "score": 0.0075
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0058
+        },
+        {
+          "doc": "en/platform/api-rate-limits-v1.md",
+          "score": 0.0023
+        },
+        {
+          "doc": "pt/frota/manutencao-vans.md",
+          "score": 0.0014
         }
       ],
-      "best_relevant_score": 1.0
+      "best_relevant_score": 1.0,
+      "delivered_chunks": 16,
+      "delivered_tokens": 1002
     },
     {
       "id": "pt-pag-002",
@@ -182,26 +220,48 @@
       "ranked": [
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 1.0
+          "score": 0.9999
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.9879
+          "score": 0.9857
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.1286
+          "score": 0.0783
         },
         {
           "doc": "en/finance/invoice-terms.txt",
-          "score": 0.0409
+          "score": 0.0467
         },
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.0134
+          "score": 0.0214
+        },
+        {
+          "doc": "pt/ti/relatorio-incidente-2025-03.md",
+          "score": 0.0066
+        },
+        {
+          "doc": "en/platform/api-rate-limits-v2.md",
+          "score": 0.0062
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-padrao.md",
+          "score": 0.0057
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.004
+        },
+        {
+          "doc": "en/platform/api-rate-limits-v1.md",
+          "score": 0.0024
         }
       ],
-      "best_relevant_score": 1.0
+      "best_relevant_score": 0.9999,
+      "delivered_chunks": 14,
+      "delivered_tokens": 1044
     },
     {
       "id": "pt-pag-003",
@@ -215,30 +275,48 @@
       "ranked": [
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.9766
+          "score": 0.9818
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0257
+          "score": 0.0143
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0193
+          "score": 0.014
         },
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.0062
-        },
-        {
-          "doc": "en/product/release-notes-3-3.md",
-          "score": 0.0038
+          "score": 0.0045
         },
         {
           "doc": "en/platform/api-rate-limits-v1.md",
-          "score": 0.0036
+          "score": 0.0043
+        },
+        {
+          "doc": "en/platform/api-rate-limits-v2.md",
+          "score": 0.0013
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.001
+        },
+        {
+          "doc": "pt/ti/backup.txt",
+          "score": 0.0007
+        },
+        {
+          "doc": "en/platform/deployment-runbook.md",
+          "score": 0.0005
+        },
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "score": 0.0005
         }
       ],
-      "best_relevant_score": 0.9766
+      "best_relevant_score": 0.9818,
+      "delivered_chunks": 6,
+      "delivered_tokens": 469
     },
     {
       "id": "pt-pag-004",
@@ -256,22 +334,44 @@
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0451
+          "score": 0.0388
         },
         {
           "doc": "en/product/release-notes-3-3.md",
-          "score": 0.0054
+          "score": 0.0078
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.005
+          "score": 0.0073
         },
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.004
+          "score": 0.0045
+        },
+        {
+          "doc": "en/support/escalation-matrix.md",
+          "score": 0.0011
+        },
+        {
+          "doc": "en/platform/api-rate-limits-v1.md",
+          "score": 0.001
+        },
+        {
+          "doc": "forms/cmr_single_pickup.pdf",
+          "score": 0.0006
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0004
+        },
+        {
+          "doc": "pt/ti/politica-senhas.txt",
+          "score": 0.0004
         }
       ],
-      "best_relevant_score": 1.0
+      "best_relevant_score": 1.0,
+      "delivered_chunks": 6,
+      "delivered_tokens": 332
     },
     {
       "id": "pt-pag-005",
@@ -285,34 +385,48 @@
       "ranked": [
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.9883
+          "score": 0.9852
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.9761
+          "score": 0.9785
         },
         {
           "doc": "en/finance/invoice-terms.txt",
-          "score": 0.0306
+          "score": 0.032
         },
         {
           "doc": "pt/financeiro/reembolso-despesas.md",
-          "score": 0.0279
+          "score": 0.0254
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0131
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0049
+          "score": 0.0138
         },
         {
           "doc": "en/hr/corporate-card-policy.pdf",
-          "score": 0.0045
+          "score": 0.0061
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-padrao.md",
+          "score": 0.0034
+        },
+        {
+          "doc": "pt/financeiro/aprovacao-compras.md",
+          "score": 0.0024
+        },
+        {
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "score": 0.0018
+        },
+        {
+          "doc": "en/platform/api-rate-limits-v1.md",
+          "score": 0.001
         }
       ],
-      "best_relevant_score": 0.9761
+      "best_relevant_score": 0.9785,
+      "delivered_chunks": 8,
+      "delivered_tokens": 601
     },
     {
       "id": "pt-pag-006",
@@ -329,31 +443,45 @@
           "score": 0.9891
         },
         {
-          "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0053
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "score": 0.0047
         },
         {
-          "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0041
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "score": 0.0044
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0035
+          "score": 0.0032
+        },
+        {
+          "doc": "en/platform/api-rate-limits-v2.md",
+          "score": 0.0022
         },
         {
           "doc": "en/security/incident-response.md",
           "score": 0.0021
         },
         {
-          "doc": "en/platform/api-rate-limits-v2.md",
-          "score": 0.0015
+          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
+          "score": 0.0012
         },
         {
-          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
-          "score": 0.0015
+          "doc": "en/platform/api-rate-limits-v1.md",
+          "score": 0.0011
+        },
+        {
+          "doc": "en/support/escalation-matrix.md",
+          "score": 0.001
+        },
+        {
+          "doc": "en/finance/invoice-terms.txt",
+          "score": 0.0007
         }
       ],
-      "best_relevant_score": 0.9891
+      "best_relevant_score": 0.9891,
+      "delivered_chunks": 1,
+      "delivered_tokens": 51
     },
     {
       "id": "pt-pag-007",
@@ -367,34 +495,48 @@
       "ranked": [
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.8976
+          "score": 0.8913
         },
         {
           "doc": "en/finance/invoice-terms.txt",
-          "score": 0.1441
+          "score": 0.1517
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0654
+          "score": 0.0555
+        },
+        {
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "score": 0.0486
         },
         {
           "doc": "en/product/pricing-plans.md",
-          "score": 0.0649
-        },
-        {
-          "doc": "pt/ti/relatorio-incidente-2025-03.md",
-          "score": 0.0208
+          "score": 0.039
         },
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0152
+          "score": 0.0157
         },
         {
           "doc": "en/platform/api-rate-limits-v1.md",
-          "score": 0.0126
+          "score": 0.015
+        },
+        {
+          "doc": "pt/ti/relatorio-incidente-2025-03.md",
+          "score": 0.014
+        },
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "score": 0.0105
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2025.md",
+          "score": 0.004
         }
       ],
-      "best_relevant_score": 0.8976
+      "best_relevant_score": 0.8913,
+      "delivered_chunks": 15,
+      "delivered_tokens": 1085
     },
     {
       "id": "pt-rh-001",
@@ -408,34 +550,48 @@
       "ranked": [
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.9697
+          "score": 0.9672
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.7953
+          "score": 0.829
         },
         {
           "doc": "en/hr/travel-policy.md",
-          "score": 0.27
+          "score": 0.47
         },
         {
           "doc": "en/finance/invoice-terms.txt",
-          "score": 0.051
-        },
-        {
-          "doc": "pt/financeiro/reembolso-despesas.md",
-          "score": 0.0133
+          "score": 0.0623
         },
         {
           "doc": "en/platform/deployment-runbook.md",
-          "score": 0.0124
+          "score": 0.0184
+        },
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "score": 0.0108
         },
         {
           "doc": "pt/operacoes/janelas-entrega-capital.md",
-          "score": 0.0071
+          "score": 0.0055
+        },
+        {
+          "doc": "pt/ti/relatorio-incidente-2025-03.md",
+          "score": 0.0045
+        },
+        {
+          "doc": "en/hr/onboarding-checklist.md",
+          "score": 0.0044
+        },
+        {
+          "doc": "pt/rh/trabalho-remoto.md",
+          "score": 0.0014
         }
       ],
-      "best_relevant_score": 0.9697
+      "best_relevant_score": 0.9672,
+      "delivered_chunks": 11,
+      "delivered_tokens": 674
     },
     {
       "id": "pt-rh-002",
@@ -449,30 +605,48 @@
       "ranked": [
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.69
+          "score": 0.772
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.1735
+          "score": 0.1948
         },
         {
           "doc": "en/hr/travel-policy.md",
-          "score": 0.0767
+          "score": 0.0891
+        },
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "score": 0.0505
         },
         {
           "doc": "en/finance/invoice-terms.txt",
-          "score": 0.0246
+          "score": 0.0178
         },
         {
           "doc": "pt/operacoes/janelas-entrega-capital.md",
-          "score": 0.0109
+          "score": 0.0174
+        },
+        {
+          "doc": "en/product/pricing-plans.md",
+          "score": 0.0064
         },
         {
           "doc": "pt/rh/trabalho-remoto.md",
-          "score": 0.0096
+          "score": 0.0064
+        },
+        {
+          "doc": "en/hr/corporate-card-policy.pdf",
+          "score": 0.0061
+        },
+        {
+          "doc": "pt/frota/manutencao-vans.md",
+          "score": 0.0059
         }
       ],
-      "best_relevant_score": 0.69
+      "best_relevant_score": 0.772,
+      "delivered_chunks": 16,
+      "delivered_tokens": 1040
     },
     {
       "id": "pt-rh-003",
@@ -486,34 +660,48 @@
       "ranked": [
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.9983
+          "score": 0.9979
         },
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.9958
-        },
-        {
-          "doc": "en/platform/deployment-runbook.md",
-          "score": 0.0237
+          "score": 0.9974
         },
         {
           "doc": "en/hr/travel-policy.md",
-          "score": 0.0181
-        },
-        {
-          "doc": "pt/financeiro/reembolso-despesas.md",
-          "score": 0.0127
+          "score": 0.0391
         },
         {
           "doc": "pt/ti/relatorio-incidente-2025-03.md",
-          "score": 0.0085
+          "score": 0.0106
+        },
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "score": 0.0097
         },
         {
           "doc": "pt/operacoes/janelas-entrega-capital.md",
-          "score": 0.0043
+          "score": 0.0065
+        },
+        {
+          "doc": "pt/frota/manutencao-vans.md",
+          "score": 0.0039
+        },
+        {
+          "doc": "pt/rh/trabalho-remoto.md",
+          "score": 0.0036
+        },
+        {
+          "doc": "en/legal/nda-template.txt",
+          "score": 0.002
+        },
+        {
+          "doc": "pt/frota/manutencao-caminhoes.md",
+          "score": 0.001
         }
       ],
-      "best_relevant_score": 0.9983
+      "best_relevant_score": 0.9979,
+      "delivered_chunks": 10,
+      "delivered_tokens": 572
     },
     {
       "id": "pt-rh-004",
@@ -527,26 +715,48 @@
       "ranked": [
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.978
+          "score": 0.9762
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0026
+          "score": 0.004
         },
         {
           "doc": "en/platform/deployment-runbook.md",
-          "score": 0.0019
+          "score": 0.0018
         },
         {
           "doc": "en/hr/travel-policy.md",
-          "score": 0.0013
+          "score": 0.0011
         },
         {
           "doc": "pt/operacoes/procedimento-carga-perigosa.md",
-          "score": 0.0012
+          "score": 0.0011
+        },
+        {
+          "doc": "pt/ti/relatorio-incidente-2025-03.md",
+          "score": 0.0008
+        },
+        {
+          "doc": "pt/frota/manutencao-vans.md",
+          "score": 0.0006
+        },
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "score": 0.0005
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "score": 0.0003
+        },
+        {
+          "doc": "pt/seguranca/epi-armazem.md",
+          "score": 0.0002
         }
       ],
-      "best_relevant_score": 0.978
+      "best_relevant_score": 0.9762,
+      "delivered_chunks": 1,
+      "delivered_tokens": 51
     },
     {
       "id": "pt-rh-005",
@@ -560,38 +770,48 @@
       "ranked": [
         {
           "doc": "pt/rh/trabalho-remoto.md",
-          "score": 0.9995
+          "score": 0.9994
         },
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0027
+          "score": 0.0024
         },
         {
           "doc": "pt/ti/relatorio-incidente-2025-03.md",
-          "score": 0.0014
+          "score": 0.0021
         },
         {
           "doc": "pt/seguranca/epi-armazem.md",
-          "score": 0.0014
+          "score": 0.0015
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0013
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-premium.md",
           "score": 0.0011
         },
         {
-          "doc": "en/hr/onboarding-checklist.md",
-          "score": 0.0011
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "score": 0.001
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v2.md",
+          "score": 0.001
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2025.md",
+          "score": 0.0007
         },
         {
           "doc": "en/support/escalation-matrix.md",
-          "score": 0.0009
+          "score": 0.0007
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0006
         }
       ],
-      "best_relevant_score": 0.9995
+      "best_relevant_score": 0.9994,
+      "delivered_chunks": 1,
+      "delivered_tokens": 55
     },
     {
       "id": "pt-rh-006",
@@ -605,34 +825,48 @@
       "ranked": [
         {
           "doc": "pt/rh/trabalho-remoto.md",
-          "score": 0.2198
+          "score": 0.2278
         },
         {
           "doc": "en/hr/onboarding-checklist.md",
-          "score": 0.071
+          "score": 0.0488
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.046
+          "score": 0.0384
         },
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.0286
-        },
-        {
-          "doc": "pt/frota/manutencao-vans.md",
-          "score": 0.0116
+          "score": 0.0329
         },
         {
           "doc": "en/hr/travel-policy.md",
-          "score": 0.0091
+          "score": 0.0089
+        },
+        {
+          "doc": "pt/frota/manutencao-vans.md",
+          "score": 0.0065
         },
         {
           "doc": "pt/operacoes/janelas-entrega-capital.md",
-          "score": 0.0033
+          "score": 0.0027
+        },
+        {
+          "doc": "pt/ti/relatorio-incidente-2025-03.md",
+          "score": 0.0012
+        },
+        {
+          "doc": "en/product/pricing-plans.md",
+          "score": 0.0011
+        },
+        {
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "score": 0.001
         }
       ],
-      "best_relevant_score": 0.2198
+      "best_relevant_score": 0.2278,
+      "delivered_chunks": 7,
+      "delivered_tokens": 450
     },
     {
       "id": "pt-fro-001",
@@ -646,34 +880,48 @@
       "ranked": [
         {
           "doc": "pt/frota/manutencao-caminhoes.md",
-          "score": 0.9995
+          "score": 0.9996
         },
         {
           "doc": "pt/frota/manutencao-vans.md",
-          "score": 0.8643
+          "score": 0.8203
         },
         {
           "doc": "en/warehouse/cold-chain-sop.md",
-          "score": 0.0047
+          "score": 0.0141
         },
         {
           "doc": "pt/ti/backup.txt",
-          "score": 0.0032
-        },
-        {
-          "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.002
+          "score": 0.0023
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0008
+          "score": 0.001
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "score": 0.0009
+        },
+        {
+          "doc": "pt/ti/politica-senhas.txt",
           "score": 0.0007
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0004
+        },
+        {
+          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
+          "score": 0.0004
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v2.md",
+          "score": 0.0003
         }
       ],
-      "best_relevant_score": 0.9995
+      "best_relevant_score": 0.9996,
+      "delivered_chunks": 4,
+      "delivered_tokens": 220
     },
     {
       "id": "pt-fro-002",
@@ -687,34 +935,48 @@
       "ranked": [
         {
           "doc": "pt/frota/manutencao-vans.md",
-          "score": 0.9976
+          "score": 0.997
         },
         {
           "doc": "pt/frota/manutencao-caminhoes.md",
-          "score": 0.2077
+          "score": 0.1889
         },
         {
           "doc": "pt/operacoes/janelas-entrega-capital.md",
-          "score": 0.0412
+          "score": 0.0509
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0276
+          "score": 0.0201
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.023
+          "score": 0.0141
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-padrao.md",
+          "score": 0.0088
         },
         {
           "doc": "pt/ti/relatorio-incidente-2025-03.md",
-          "score": 0.0139
+          "score": 0.0076
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0121
+          "score": 0.0064
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2024.md",
+          "score": 0.006
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v2.md",
+          "score": 0.0036
         }
       ],
-      "best_relevant_score": 0.9976
+      "best_relevant_score": 0.997,
+      "delivered_chunks": 14,
+      "delivered_tokens": 795
     },
     {
       "id": "pt-fro-003",
@@ -728,22 +990,26 @@
       "ranked": [
         {
           "doc": "pt/frota/manutencao-caminhoes.md",
-          "score": 0.9817
-        },
-        {
-          "doc": "pt/ti/politica-senhas.txt",
-          "score": 0.0022
+          "score": 0.989
         },
         {
           "doc": "en/warehouse/cold-chain-sop.md",
-          "score": 0.0019
+          "score": 0.0021
         },
         {
-          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
-          "score": 0.0013
+          "doc": "pt/ti/politica-senhas.txt",
+          "score": 0.0012
+        },
+        {
+          "doc": "en/warehouse/forklift-safety.pdf",
+          "score": 0.0011
         },
         {
           "doc": "pt/frota/manutencao-vans.md",
+          "score": 0.001
+        },
+        {
+          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
           "score": 0.0007
         },
         {
@@ -751,15 +1017,21 @@
           "score": 0.0006
         },
         {
-          "doc": "en/warehouse/forklift-safety.pdf",
+          "doc": "pt/operacoes/manual-empilhadeira.pdf",
           "score": 0.0005
         },
         {
-          "doc": "pt/operacoes/manual-empilhadeira.pdf",
-          "score": 0.0005
+          "doc": "pt/ti/backup.txt",
+          "score": 0.0003
+        },
+        {
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "score": 0.0002
         }
       ],
-      "best_relevant_score": 0.9817
+      "best_relevant_score": 0.989,
+      "delivered_chunks": 2,
+      "delivered_tokens": 115
     },
     {
       "id": "pt-fro-004",
@@ -773,22 +1045,48 @@
       "ranked": [
         {
           "doc": "pt/frota/manutencao-vans.md",
-          "score": 0.9977
+          "score": 0.9978
         },
         {
           "doc": "pt/frota/manutencao-caminhoes.md",
-          "score": 0.1853
+          "score": 0.1479
         },
         {
           "doc": "en/platform/deployment-runbook.md",
-          "score": 0.0147
+          "score": 0.0131
         },
         {
           "doc": "pt/operacoes/manual-empilhadeira.pdf",
-          "score": 0.0093
+          "score": 0.0091
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v2.md",
+          "score": 0.0013
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "score": 0.0011
+        },
+        {
+          "doc": "pt/ti/politica-senhas.txt",
+          "score": 0.0008
+        },
+        {
+          "doc": "pt/operacoes/janelas-entrega-capital.md",
+          "score": 0.0007
+        },
+        {
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "score": 0.0004
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2024.md",
+          "score": 0.0002
         }
       ],
-      "best_relevant_score": 0.9977
+      "best_relevant_score": 0.9978,
+      "delivered_chunks": 4,
+      "delivered_tokens": 364
     },
     {
       "id": "pt-ope-001",
@@ -805,31 +1103,45 @@
           "score": 0.9999
         },
         {
-          "doc": "en/warehouse/cold-chain-sop.md",
-          "score": 0.0133
+          "doc": "en/hr/travel-policy.md",
+          "score": 0.0407
         },
         {
-          "doc": "en/hr/onboarding-checklist.md",
-          "score": 0.0046
+          "doc": "en/warehouse/cold-chain-sop.md",
+          "score": 0.0089
         },
         {
           "doc": "pt/frota/manutencao-caminhoes.md",
-          "score": 0.0046
+          "score": 0.0054
         },
         {
-          "doc": "pt/frota/manutencao-vans.md",
-          "score": 0.0044
+          "doc": "en/hr/onboarding-checklist.md",
+          "score": 0.0045
         },
         {
           "doc": "en/warehouse/forklift-safety.pdf",
-          "score": 0.003
+          "score": 0.0031
+        },
+        {
+          "doc": "pt/frota/manutencao-vans.md",
+          "score": 0.0028
         },
         {
           "doc": "pt/seguranca/epi-armazem.md",
-          "score": 0.0017
+          "score": 0.0023
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "score": 0.0011
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.001
         }
       ],
-      "best_relevant_score": 0.9999
+      "best_relevant_score": 0.9999,
+      "delivered_chunks": 6,
+      "delivered_tokens": 328
     },
     {
       "id": "pt-ope-002",
@@ -847,22 +1159,44 @@
         },
         {
           "doc": "forms/cmr_single_pickup.pdf",
-          "score": 0.0281
+          "score": 0.0244
         },
         {
           "doc": "en/warehouse/cold-chain-sop.md",
-          "score": 0.0086
-        },
-        {
-          "doc": "pt/financeiro/reembolso-despesas.md",
-          "score": 0.0034
+          "score": 0.004
         },
         {
           "doc": "pt/seguranca/epi-armazem.md",
           "score": 0.0033
+        },
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "score": 0.0029
+        },
+        {
+          "doc": "en/warehouse/forklift-safety.pdf",
+          "score": 0.0025
+        },
+        {
+          "doc": "pt/operacoes/janelas-entrega-capital.md",
+          "score": 0.0024
+        },
+        {
+          "doc": "pt/rh/trabalho-remoto.md",
+          "score": 0.002
+        },
+        {
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "score": 0.0014
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2025.md",
+          "score": 0.0014
         }
       ],
-      "best_relevant_score": 1.0
+      "best_relevant_score": 1.0,
+      "delivered_chunks": 4,
+      "delivered_tokens": 2051
     },
     {
       "id": "pt-ope-003",
@@ -880,34 +1214,44 @@
         },
         {
           "doc": "pt/ti/relatorio-incidente-2025-03.md",
-          "score": 0.0244
+          "score": 0.0225
         },
         {
           "doc": "en/platform/deployment-runbook.md",
-          "score": 0.0214
+          "score": 0.0186
         },
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0117
+          "score": 0.017
         },
         {
           "doc": "pt/frota/manutencao-vans.md",
-          "score": 0.0113
+          "score": 0.0103
+        },
+        {
+          "doc": "pt/ti/backup.txt",
+          "score": 0.0051
         },
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.0052
-        },
-        {
-          "doc": "pt/financeiro/reembolso-despesas.md",
-          "score": 0.0045
+          "score": 0.0047
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0042
+          "score": 0.0044
+        },
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "score": 0.0036
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2024.md",
+          "score": 0.0035
         }
       ],
-      "best_relevant_score": 0.9999
+      "best_relevant_score": 0.9999,
+      "delivered_chunks": 8,
+      "delivered_tokens": 531
     },
     {
       "id": "pt-ope-004",
@@ -925,38 +1269,44 @@
         },
         {
           "doc": "en/finance/invoice-terms.txt",
-          "score": 0.0179
-        },
-        {
-          "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.0134
+          "score": 0.0125
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0103
+          "score": 0.0093
         },
         {
-          "doc": "pt/ti/relatorio-incidente-2025-03.md",
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
           "score": 0.0086
         },
         {
-          "doc": "en/support/escalation-matrix.md",
-          "score": 0.0066
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0064
-        },
-        {
-          "doc": "en/platform/deployment-runbook.md",
-          "score": 0.0056
+          "doc": "pt/rh/politica-ferias-2025.md",
+          "score": 0.0084
         },
         {
           "doc": "en/warehouse/cold-chain-sop.md",
+          "score": 0.0077
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-padrao.md",
+          "score": 0.0058
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2024.md",
           "score": 0.0056
+        },
+        {
+          "doc": "pt/frota/manutencao-vans.md",
+          "score": 0.0046
+        },
+        {
+          "doc": "en/platform/deployment-runbook.md",
+          "score": 0.0038
         }
       ],
-      "best_relevant_score": 0.9999
+      "best_relevant_score": 0.9999,
+      "delivered_chunks": 9,
+      "delivered_tokens": 626
     },
     {
       "id": "pt-ope-005",
@@ -974,34 +1324,44 @@
         },
         {
           "doc": "en/warehouse/forklift-safety.pdf",
-          "score": 0.1786
-        },
-        {
-          "doc": "en/warehouse/cold-chain-sop.md",
-          "score": 0.0287
+          "score": 0.1591
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0096
+          "score": 0.0123
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0089
+          "score": 0.0092
+        },
+        {
+          "doc": "en/warehouse/cold-chain-sop.md",
+          "score": 0.0033
         },
         {
           "doc": "pt/frota/manutencao-caminhoes.md",
-          "score": 0.002
+          "score": 0.0018
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0015
+          "score": 0.0008
+        },
+        {
+          "doc": "pt/seguranca/epi-armazem.md",
+          "score": 0.0008
         },
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0009
+          "score": 0.0007
+        },
+        {
+          "doc": "pt/rh/trabalho-remoto.md",
+          "score": 0.0006
         }
       ],
-      "best_relevant_score": 0.9998
+      "best_relevant_score": 0.9998,
+      "delivered_chunks": 4,
+      "delivered_tokens": 440
     },
     {
       "id": "pt-ope-006",
@@ -1015,38 +1375,48 @@
       "ranked": [
         {
           "doc": "pt/operacoes/manual-empilhadeira.pdf",
-          "score": 0.9998
+          "score": 0.9999
         },
         {
           "doc": "en/warehouse/forklift-safety.pdf",
-          "score": 0.3961
+          "score": 0.3864
         },
         {
           "doc": "pt/seguranca/epi-armazem.md",
-          "score": 0.1386
+          "score": 0.1018
         },
         {
           "doc": "en/warehouse/cold-chain-sop.md",
-          "score": 0.0076
+          "score": 0.0036
+        },
+        {
+          "doc": "en/support/escalation-matrix.md",
+          "score": 0.0035
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "score": 0.0024
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
           "score": 0.0023
         },
         {
-          "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0023
-        },
-        {
-          "doc": "pt/frota/manutencao-vans.md",
-          "score": 0.0008
+          "doc": "en/platform/deployment-runbook.md",
+          "score": 0.0006
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
           "score": 0.0005
+        },
+        {
+          "doc": "pt/frota/manutencao-vans.md",
+          "score": 0.0004
         }
       ],
-      "best_relevant_score": 0.9998
+      "best_relevant_score": 0.9999,
+      "delivered_chunks": 3,
+      "delivered_tokens": 383
     },
     {
       "id": "pt-ti-001",
@@ -1060,42 +1430,48 @@
       "ranked": [
         {
           "doc": "pt/ti/backup.txt",
-          "score": 0.8634
+          "score": 0.8776
         },
         {
           "doc": "en/security/data-retention.md",
-          "score": 0.2123
+          "score": 0.2388
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0818
+          "score": 0.0856
         },
         {
           "doc": "en/legal/nda-template.txt",
-          "score": 0.0616
+          "score": 0.0783
         },
         {
           "doc": "en/security/incident-response.md",
+          "score": 0.0446
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2024.md",
           "score": 0.0392
         },
         {
           "doc": "pt/frota/manutencao-vans.md",
-          "score": 0.0341
+          "score": 0.0388
         },
         {
-          "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0321
-        },
-        {
-          "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.0305
+          "doc": "pt/ti/relatorio-incidente-2025-03.md",
+          "score": 0.0366
         },
         {
           "doc": "en/warehouse/cold-chain-sop.md",
-          "score": 0.0117
+          "score": 0.0308
+        },
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "score": 0.0086
         }
       ],
-      "best_relevant_score": 0.8634
+      "best_relevant_score": 0.8776,
+      "delivered_chunks": 12,
+      "delivered_tokens": 947
     },
     {
       "id": "pt-ti-002",
@@ -1109,34 +1485,48 @@
       "ranked": [
         {
           "doc": "pt/ti/backup.txt",
-          "score": 0.9986
+          "score": 0.9976
         },
         {
           "doc": "pt/ti/relatorio-incidente-2025-03.md",
-          "score": 0.834
+          "score": 0.7877
         },
         {
           "doc": "en/platform/deployment-runbook.md",
-          "score": 0.1997
+          "score": 0.2292
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0456
+          "score": 0.0393
         },
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.0334
+          "score": 0.0291
         },
         {
           "doc": "pt/operacoes/janelas-entrega-capital.md",
-          "score": 0.0253
+          "score": 0.0226
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0192
         },
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.017
+          "score": 0.0168
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v2.md",
+          "score": 0.0101
+        },
+        {
+          "doc": "en/support/escalation-matrix.md",
+          "score": 0.0067
         }
       ],
-      "best_relevant_score": 0.9986
+      "best_relevant_score": 0.9976,
+      "delivered_chunks": 16,
+      "delivered_tokens": 1150
     },
     {
       "id": "pt-ti-003",
@@ -1150,46 +1540,48 @@
       "ranked": [
         {
           "doc": "pt/ti/politica-senhas.txt",
-          "score": 0.4359
+          "score": 0.2783
         },
         {
           "doc": "en/warehouse/forklift-safety.pdf",
-          "score": 0.0068
+          "score": 0.005
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.004
-        },
-        {
-          "doc": "en/hr/corporate-card-policy.pdf",
-          "score": 0.0036
-        },
-        {
-          "doc": "en/security/incident-response.md",
-          "score": 0.0031
-        },
-        {
-          "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.003
+          "score": 0.0046
         },
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.0025
+          "score": 0.0042
         },
         {
-          "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0022
+          "doc": "en/hr/corporate-card-policy.pdf",
+          "score": 0.0039
         },
         {
-          "doc": "en/platform/api-rate-limits-v2.md",
-          "score": 0.002
+          "doc": "en/security/incident-response.md",
+          "score": 0.0027
         },
         {
           "doc": "pt/operacoes/manual-empilhadeira.pdf",
+          "score": 0.0023
+        },
+        {
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "score": 0.0018
+        },
+        {
+          "doc": "en/platform/api-rate-limits-v2.md",
           "score": 0.0014
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0013
         }
       ],
-      "best_relevant_score": 0.4359
+      "best_relevant_score": 0.2783,
+      "delivered_chunks": 1,
+      "delivered_tokens": 139
     },
     {
       "id": "pt-ti-004",
@@ -1203,42 +1595,48 @@
       "ranked": [
         {
           "doc": "pt/ti/politica-senhas.txt",
-          "score": 0.8656
+          "score": 0.7748
         },
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.0219
+          "score": 0.0189
         },
         {
-          "doc": "en/security/data-retention.md",
-          "score": 0.0096
+          "doc": "pt/rh/politica-ferias-2024.md",
+          "score": 0.0106
         },
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.0036
+          "score": 0.0088
+        },
+        {
+          "doc": "en/security/data-retention.md",
+          "score": 0.0045
         },
         {
           "doc": "en/hr/corporate-card-policy.pdf",
-          "score": 0.0036
+          "score": 0.0041
         },
         {
           "doc": "en/hr/onboarding-checklist.md",
-          "score": 0.0025
+          "score": 0.0016
         },
         {
           "doc": "pt/frota/manutencao-vans.md",
-          "score": 0.0017
+          "score": 0.0012
         },
         {
-          "doc": "en/product/pricing-plans.md",
-          "score": 0.0015
+          "doc": "pt/frota/manutencao-caminhoes.md",
+          "score": 0.0011
         },
         {
           "doc": "en/warehouse/cold-chain-sop.md",
-          "score": 0.0014
+          "score": 0.0011
         }
       ],
-      "best_relevant_score": 0.8656
+      "best_relevant_score": 0.7748,
+      "delivered_chunks": 4,
+      "delivered_tokens": 282
     },
     {
       "id": "pt-ti-005",
@@ -1252,26 +1650,48 @@
       "ranked": [
         {
           "doc": "pt/ti/relatorio-incidente-2025-03.md",
-          "score": 0.9565
+          "score": 0.9467
         },
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.0012
+          "score": 0.0007
         },
         {
-          "doc": "en/platform/deployment-runbook.md",
-          "score": 0.0003
-        },
-        {
-          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
-          "score": 0.0002
+          "doc": "en/product/pricing-plans.md",
+          "score": 0.0005
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
+          "score": 0.0002
+        },
+        {
+          "doc": "en/platform/deployment-runbook.md",
+          "score": 0.0002
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0002
+        },
+        {
+          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
+          "score": 0.0001
+        },
+        {
+          "doc": "en/hr/corporate-card-policy.pdf",
+          "score": 0.0001
+        },
+        {
+          "doc": "en/product/release-notes-3-2.md",
+          "score": 0.0001
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
           "score": 0.0001
         }
       ],
-      "best_relevant_score": 0.9565
+      "best_relevant_score": 0.9467,
+      "delivered_chunks": 3,
+      "delivered_tokens": 167
     },
     {
       "id": "pt-ti-006",
@@ -1289,22 +1709,44 @@
         },
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.0124
+          "score": 0.0153
         },
         {
           "doc": "pt/ti/backup.txt",
-          "score": 0.0101
+          "score": 0.0124
         },
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.0055
+          "score": 0.0039
+        },
+        {
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "score": 0.0023
         },
         {
           "doc": "en/platform/deployment-runbook.md",
-          "score": 0.0025
+          "score": 0.0022
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2024.md",
+          "score": 0.0014
+        },
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "score": 0.001
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "score": 0.0003
+        },
+        {
+          "doc": "forms/cmr_single_pickup.pdf",
+          "score": 0.0003
         }
       ],
-      "best_relevant_score": 1.0
+      "best_relevant_score": 1.0,
+      "delivered_chunks": 5,
+      "delivered_tokens": 450
     },
     {
       "id": "pt-fin-001",
@@ -1318,26 +1760,48 @@
       "ranked": [
         {
           "doc": "pt/financeiro/reembolso-despesas.md",
-          "score": 0.8167
+          "score": 0.8294
         },
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.0556
-        },
-        {
-          "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0545
+          "score": 0.0611
         },
         {
           "doc": "en/hr/travel-policy.md",
-          "score": 0.0387
+          "score": 0.0528
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2024.md",
+          "score": 0.043
+        },
+        {
+          "doc": "pt/ti/relatorio-incidente-2025-03.md",
+          "score": 0.0055
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0064
+          "score": 0.0053
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "score": 0.0053
+        },
+        {
+          "doc": "en/warehouse/cold-chain-sop.md",
+          "score": 0.0046
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v2.md",
+          "score": 0.0018
+        },
+        {
+          "doc": "en/hr/corporate-card-policy.pdf",
+          "score": 0.0014
         }
       ],
-      "best_relevant_score": 0.8167
+      "best_relevant_score": 0.8294,
+      "delivered_chunks": 12,
+      "delivered_tokens": 711
     },
     {
       "id": "pt-fin-002",
@@ -1351,75 +1815,103 @@
       "ranked": [
         {
           "doc": "pt/financeiro/reembolso-despesas.md",
-          "score": 0.9955
-        },
-        {
-          "doc": "en/finance/invoice-terms.txt",
-          "score": 0.2833
+          "score": 0.9957
         },
         {
           "doc": "en/hr/travel-policy.md",
-          "score": 0.2132
+          "score": 0.2089
+        },
+        {
+          "doc": "en/finance/invoice-terms.txt",
+          "score": 0.1886
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0434
+          "score": 0.042
         },
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.0274
+          "score": 0.0317
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0169
+          "score": 0.0227
+        },
+        {
+          "doc": "en/hr/corporate-card-policy.pdf",
+          "score": 0.0112
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0085
+        },
+        {
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "score": 0.0068
+        },
+        {
+          "doc": "pt/frota/manutencao-caminhoes.md",
+          "score": 0.0041
         }
       ],
-      "best_relevant_score": 0.9955
+      "best_relevant_score": 0.9957,
+      "delivered_chunks": 14,
+      "delivered_tokens": 937
     },
     {
       "id": "pt-fin-003",
       "lang": "pt",
       "category": "factual",
-      "first_relevant_rank": 2,
-      "ndcg_at_10": 0.6309,
+      "first_relevant_rank": 1,
+      "ndcg_at_10": 1.0,
       "passage_hit_at_5": true,
       "delivered_hit": true,
       "nothing_found": false,
       "ranked": [
         {
-          "doc": "en/hr/corporate-card-policy.pdf",
-          "score": 0.0426
-        },
-        {
           "doc": "pt/financeiro/aprovacao-compras.md",
-          "score": 0.037
+          "score": 0.0501
         },
         {
-          "doc": "en/hr/travel-policy.md",
-          "score": 0.0072
+          "doc": "en/hr/corporate-card-policy.pdf",
+          "score": 0.0343
         },
         {
           "doc": "en/finance/invoice-terms.txt",
-          "score": 0.0059
+          "score": 0.0068
+        },
+        {
+          "doc": "en/hr/travel-policy.md",
+          "score": 0.0053
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0019
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0008
-        },
-        {
-          "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0006
+          "score": 0.0014
         },
         {
           "doc": "pt/financeiro/reembolso-despesas.md",
-          "score": 0.0005
+          "score": 0.001
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2024.md",
+          "score": 0.0008
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v2.md",
+          "score": 0.0004
+        },
+        {
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "score": 0.0004
+        },
+        {
+          "doc": "en/product/pricing-plans.md",
+          "score": 0.0004
         }
       ],
-      "best_relevant_score": 0.037
+      "best_relevant_score": 0.0501,
+      "delivered_chunks": 4,
+      "delivered_tokens": 420
     },
     {
       "id": "pt-fin-004",
@@ -1433,46 +1925,48 @@
       "ranked": [
         {
           "doc": "en/hr/travel-policy.md",
-          "score": 0.1851
+          "score": 0.271
         },
         {
           "doc": "pt/financeiro/aprovacao-compras.md",
-          "score": 0.1116
+          "score": 0.1101
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0308
+          "score": 0.0427
         },
         {
           "doc": "en/hr/corporate-card-policy.pdf",
-          "score": 0.0193
-        },
-        {
-          "doc": "en/platform/api-rate-limits-v2.md",
-          "score": 0.0152
-        },
-        {
-          "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0148
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0109
+          "score": 0.02
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0105
+          "score": 0.0155
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "score": 0.0137
+        },
+        {
+          "doc": "en/platform/api-rate-limits-v2.md",
+          "score": 0.0128
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0094
+          "score": 0.0098
         },
         {
-          "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0061
+          "doc": "pt/clientes/sla-contrato-padrao.md",
+          "score": 0.0098
+        },
+        {
+          "doc": "en/finance/invoice-terms.txt",
+          "score": 0.0044
         }
       ],
-      "best_relevant_score": 0.1116
+      "best_relevant_score": 0.1101,
+      "delivered_chunks": 10,
+      "delivered_tokens": 649
     },
     {
       "id": "pt-cli-001",
@@ -1490,22 +1984,44 @@
         },
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.8847
+          "score": 0.8961
         },
         {
           "doc": "pt/operacoes/janelas-entrega-capital.md",
-          "score": 0.0108
+          "score": 0.0106
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0066
+          "score": 0.008
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.005
+          "score": 0.0069
+        },
+        {
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "score": 0.0035
+        },
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "score": 0.0028
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2025.md",
+          "score": 0.0022
+        },
+        {
+          "doc": "en/product/pricing-plans.md",
+          "score": 0.001
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2024.md",
+          "score": 0.0007
         }
       ],
-      "best_relevant_score": 0.9999
+      "best_relevant_score": 0.9999,
+      "delivered_chunks": 10,
+      "delivered_tokens": 574
     },
     {
       "id": "pt-cli-002",
@@ -1519,26 +2035,48 @@
       "ranked": [
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.9792
+          "score": 0.9696
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.9498
+          "score": 0.9631
+        },
+        {
+          "doc": "en/platform/deployment-runbook.md",
+          "score": 0.0066
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0043
-        },
-        {
-          "doc": "en/hr/corporate-card-policy.pdf",
-          "score": 0.0029
+          "score": 0.0034
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
           "score": 0.0025
+        },
+        {
+          "doc": "en/platform/api-rate-limits-v1.md",
+          "score": 0.0013
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2024.md",
+          "score": 0.0009
+        },
+        {
+          "doc": "pt/financeiro/aprovacao-compras.md",
+          "score": 0.0005
+        },
+        {
+          "doc": "en/platform/api-rate-limits-v2.md",
+          "score": 0.0004
+        },
+        {
+          "doc": "pt/frota/manutencao-caminhoes.md",
+          "score": 0.0004
         }
       ],
-      "best_relevant_score": 0.9792
+      "best_relevant_score": 0.9696,
+      "delivered_chunks": 6,
+      "delivered_tokens": 278
     },
     {
       "id": "pt-cli-003",
@@ -1556,42 +2094,44 @@
         },
         {
           "doc": "forms/cmr_single_pickup.pdf",
-          "score": 0.0028
+          "score": 0.0024
         },
         {
           "doc": "pt/financeiro/reembolso-despesas.md",
-          "score": 0.0027
+          "score": 0.002
         },
         {
           "doc": "pt/operacoes/manual-empilhadeira.pdf",
-          "score": 0.0015
+          "score": 0.0011
         },
         {
-          "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.001
+          "doc": "pt/pagamentos/servico-pagamento-v2.md",
+          "score": 0.0008
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0008
         },
         {
           "doc": "en/warehouse/forklift-safety.pdf",
           "score": 0.0008
         },
         {
-          "doc": "pt/ti/politica-senhas.txt",
-          "score": 0.0007
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0005
+          "doc": "pt/rh/politica-ferias-2025.md",
+          "score": 0.0008
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0005
+          "score": 0.0007
         },
         {
-          "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0005
+          "doc": "pt/ti/relatorio-incidente-2025-03.md",
+          "score": 0.0007
         }
       ],
-      "best_relevant_score": 1.0
+      "best_relevant_score": 1.0,
+      "delivered_chunks": 1,
+      "delivered_tokens": 152
     },
     {
       "id": "pt-cli-004",
@@ -1605,42 +2145,48 @@
       "ranked": [
         {
           "doc": "pt/clientes/tabela-frete-2026.pdf",
-          "score": 0.2751
+          "score": 0.3235
         },
         {
           "doc": "en/warehouse/forklift-safety.pdf",
-          "score": 0.1036
+          "score": 0.0873
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0514
+          "score": 0.0547
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0327
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0157
+          "score": 0.0359
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0132
+          "score": 0.0145
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0118
         },
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.0114
+          "score": 0.0099
+        },
+        {
+          "doc": "en/warehouse/cold-chain-sop.md",
+          "score": 0.0085
+        },
+        {
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "score": 0.0059
         },
         {
           "doc": "pt/ti/politica-senhas.txt",
-          "score": 0.0075
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0067
+          "score": 0.0048
         }
       ],
-      "best_relevant_score": 0.2751
+      "best_relevant_score": 0.3235,
+      "delivered_chunks": 12,
+      "delivered_tokens": 860
     },
     {
       "id": "pt-seg-001",
@@ -1654,34 +2200,48 @@
       "ranked": [
         {
           "doc": "pt/seguranca/epi-armazem.md",
-          "score": 0.2672
+          "score": 0.3293
         },
         {
           "doc": "pt/operacoes/procedimento-carga-perigosa.md",
-          "score": 0.0136
+          "score": 0.0134
         },
         {
           "doc": "pt/financeiro/reembolso-despesas.md",
-          "score": 0.0092
+          "score": 0.0088
         },
         {
           "doc": "en/warehouse/forklift-safety.pdf",
-          "score": 0.0065
-        },
-        {
-          "doc": "pt/frota/manutencao-caminhoes.md",
-          "score": 0.0051
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0045
+          "score": 0.0081
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0041
+          "score": 0.0058
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0053
+        },
+        {
+          "doc": "pt/frota/manutencao-caminhoes.md",
+          "score": 0.0049
+        },
+        {
+          "doc": "pt/operacoes/manual-empilhadeira.pdf",
+          "score": 0.0036
+        },
+        {
+          "doc": "pt/frota/manutencao-vans.md",
+          "score": 0.003
+        },
+        {
+          "doc": "pt/ti/relatorio-incidente-2025-03.md",
+          "score": 0.0028
         }
       ],
-      "best_relevant_score": 0.2672
+      "best_relevant_score": 0.3293,
+      "delivered_chunks": 9,
+      "delivered_tokens": 568
     },
     {
       "id": "pt-seg-002",
@@ -1695,34 +2255,48 @@
       "ranked": [
         {
           "doc": "en/warehouse/cold-chain-sop.md",
-          "score": 0.6671
+          "score": 0.6838
         },
         {
           "doc": "pt/seguranca/epi-armazem.md",
-          "score": 0.3494
+          "score": 0.337
         },
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.1912
+          "score": 0.1552
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.1017
+          "score": 0.1118
         },
         {
           "doc": "en/hr/travel-policy.md",
-          "score": 0.0437
+          "score": 0.064
         },
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.0411
+          "score": 0.0391
+        },
+        {
+          "doc": "en/hr/onboarding-checklist.md",
+          "score": 0.0377
         },
         {
           "doc": "pt/operacoes/janelas-entrega-capital.md",
-          "score": 0.0207
+          "score": 0.02
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-padrao.md",
+          "score": 0.0159
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0102
         }
       ],
-      "best_relevant_score": 0.3494
+      "best_relevant_score": 0.337,
+      "delivered_chunks": 20,
+      "delivered_tokens": 1184
     },
     {
       "id": "pt-cross-001",
@@ -1736,67 +2310,103 @@
       "ranked": [
         {
           "doc": "en/warehouse/cold-chain-sop.md",
-          "score": 0.9914
+          "score": 0.9833
         },
         {
           "doc": "en/warehouse/forklift-safety.pdf",
-          "score": 0.0085
-        },
-        {
-          "doc": "en/platform/deployment-runbook.md",
-          "score": 0.0027
+          "score": 0.015
         },
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.002
+          "score": 0.0023
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0019
+          "score": 0.0021
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0016
+          "score": 0.0019
+        },
+        {
+          "doc": "en/platform/deployment-runbook.md",
+          "score": 0.0018
+        },
+        {
+          "doc": "en/hr/travel-policy.md",
+          "score": 0.0013
+        },
+        {
+          "doc": "pt/frota/manutencao-caminhoes.md",
+          "score": 0.0009
+        },
+        {
+          "doc": "pt/seguranca/epi-armazem.md",
+          "score": 0.0008
+        },
+        {
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "score": 0.0006
         }
       ],
-      "best_relevant_score": 0.9914
+      "best_relevant_score": 0.9833,
+      "delivered_chunks": 3,
+      "delivered_tokens": 215
     },
     {
       "id": "pt-cross-002",
       "lang": "pt",
       "category": "cross-language",
-      "first_relevant_rank": 1,
-      "ndcg_at_10": 1.0,
+      "first_relevant_rank": 2,
+      "ndcg_at_10": 0.6309,
       "passage_hit_at_5": true,
       "delivered_hit": true,
       "nothing_found": false,
       "ranked": [
         {
-          "doc": "en/platform/api-rate-limits-v2.md",
-          "score": 0.9992
+          "doc": "en/platform/api-rate-limits-v1.md",
+          "score": 0.999
         },
         {
-          "doc": "en/platform/api-rate-limits-v1.md",
+          "doc": "en/platform/api-rate-limits-v2.md",
           "score": 0.9988
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.78
+          "score": 0.7374
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.2265
+          "score": 0.259
         },
         {
           "doc": "en/hr/corporate-card-policy.pdf",
-          "score": 0.0954
+          "score": 0.1117
         },
         {
           "doc": "en/support/escalation-matrix.md",
-          "score": 0.0281
+          "score": 0.0468
+        },
+        {
+          "doc": "en/product/pricing-plans.md",
+          "score": 0.0157
+        },
+        {
+          "doc": "en/product/release-notes-3-3.md",
+          "score": 0.0109
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "score": 0.0081
+        },
+        {
+          "doc": "en/security/incident-response.md",
+          "score": 0.0037
         }
       ],
-      "best_relevant_score": 0.9992
+      "best_relevant_score": 0.9988,
+      "delivered_chunks": 13,
+      "delivered_tokens": 984
     },
     {
       "id": "pt-cross-003",
@@ -1810,46 +2420,48 @@
       "ranked": [
         {
           "doc": "en/finance/invoice-terms.txt",
-          "score": 0.995
+          "score": 0.9948
         },
         {
           "doc": "en/hr/corporate-card-policy.pdf",
-          "score": 0.8806
+          "score": 0.8507
         },
         {
           "doc": "en/product/pricing-plans.md",
-          "score": 0.2721
+          "score": 0.3428
         },
         {
           "doc": "en/security/data-retention.md",
-          "score": 0.1704
-        },
-        {
-          "doc": "en/support/escalation-matrix.md",
-          "score": 0.07
-        },
-        {
-          "doc": "en/hr/onboarding-checklist.md",
-          "score": 0.0655
+          "score": 0.1757
         },
         {
           "doc": "en/platform/api-rate-limits-v1.md",
-          "score": 0.0576
+          "score": 0.0541
+        },
+        {
+          "doc": "en/hr/onboarding-checklist.md",
+          "score": 0.0523
+        },
+        {
+          "doc": "en/support/escalation-matrix.md",
+          "score": 0.0472
         },
         {
           "doc": "pt/financeiro/reembolso-despesas.md",
-          "score": 0.0171
+          "score": 0.0151
         },
         {
-          "doc": "en/security/incident-response.md",
-          "score": 0.0098
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "score": 0.0081
         },
         {
-          "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0069
+          "doc": "pt/clientes/sla-contrato-padrao.md",
+          "score": 0.0074
         }
       ],
-      "best_relevant_score": 0.995
+      "best_relevant_score": 0.9948,
+      "delivered_chunks": 12,
+      "delivered_tokens": 1055
     },
     {
       "id": "pt-cmr-001",
@@ -1863,42 +2475,48 @@
       "ranked": [
         {
           "doc": "forms/cmr_single_pickup.pdf",
-          "score": 0.4399
-        },
-        {
-          "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0285
+          "score": 0.3309
         },
         {
           "doc": "en/warehouse/forklift-safety.pdf",
-          "score": 0.0257
+          "score": 0.03
         },
         {
-          "doc": "pt/clientes/tabela-frete-2026.pdf",
-          "score": 0.0207
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "score": 0.022
         },
         {
           "doc": "pt/operacoes/manual-empilhadeira.pdf",
-          "score": 0.0175
+          "score": 0.0197
+        },
+        {
+          "doc": "pt/clientes/tabela-frete-2026.pdf",
+          "score": 0.0119
         },
         {
           "doc": "pt/ti/politica-senhas.txt",
-          "score": 0.0048
+          "score": 0.0059
         },
         {
           "doc": "en/warehouse/cold-chain-sop.md",
-          "score": 0.0028
+          "score": 0.0027
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0012
+          "score": 0.0007
         },
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0007
+          "score": 0.0004
+        },
+        {
+          "doc": "pt/seguranca/epi-armazem.md",
+          "score": 0.0003
         }
       ],
-      "best_relevant_score": 0.4399
+      "best_relevant_score": 0.3309,
+      "delivered_chunks": 6,
+      "delivered_tokens": 2529
     },
     {
       "id": "en-cmr-001",
@@ -1912,38 +2530,48 @@
       "ranked": [
         {
           "doc": "forms/cmr_single_pickup.pdf",
-          "score": 0.369
+          "score": 0.4999
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "score": 0.0073
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0024
+          "score": 0.0027
         },
         {
           "doc": "pt/clientes/tabela-frete-2026.pdf",
-          "score": 0.0011
+          "score": 0.0007
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
           "score": 0.0004
         },
         {
-          "doc": "en/security/incident-response.md",
-          "score": 0.0003
-        },
-        {
-          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
-          "score": 0.0002
-        },
-        {
           "doc": "en/platform/api-rate-limits-v2.md",
           "score": 0.0002
         },
         {
-          "doc": "en/product/release-notes-3-3.md",
+          "doc": "en/security/incident-response.md",
           "score": 0.0002
+        },
+        {
+          "doc": "en/product/release-notes-3-3.md",
+          "score": 0.0001
+        },
+        {
+          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
+          "score": 0.0001
+        },
+        {
+          "doc": "en/product/release-notes-3-2.md",
+          "score": 0.0001
         }
       ],
-      "best_relevant_score": 0.369
+      "best_relevant_score": 0.4999,
+      "delivered_chunks": 2,
+      "delivered_tokens": 1926
     },
     {
       "id": "en-cmr-002",
@@ -1957,30 +2585,48 @@
       "ranked": [
         {
           "doc": "forms/cmr_single_pickup.pdf",
-          "score": 0.4935
+          "score": 0.4597
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0225
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0156
+          "score": 0.0239
         },
         {
           "doc": "pt/operacoes/janelas-entrega-capital.md",
-          "score": 0.0154
+          "score": 0.0198
         },
         {
-          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
-          "score": 0.0051
+          "doc": "pt/ti/relatorio-incidente-2025-03.md",
+          "score": 0.0162
         },
         {
           "doc": "pt/operacoes/manual-empilhadeira.pdf",
-          "score": 0.0036
+          "score": 0.0033
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0029
+        },
+        {
+          "doc": "pt/financeiro/aprovacao-compras.md",
+          "score": 0.0029
+        },
+        {
+          "doc": "pt/clientes/tabela-frete-2026.pdf",
+          "score": 0.002
+        },
+        {
+          "doc": "en/product/release-notes-3-3.md",
+          "score": 0.0017
+        },
+        {
+          "doc": "en/platform/deployment-runbook.md",
+          "score": 0.001
         }
       ],
-      "best_relevant_score": 0.4935
+      "best_relevant_score": 0.4597,
+      "delivered_chunks": 7,
+      "delivered_tokens": 2147
     },
     {
       "id": "en-api-001",
@@ -1998,22 +2644,44 @@
         },
         {
           "doc": "en/platform/api-rate-limits-v1.md",
-          "score": 0.9304
-        },
-        {
-          "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.6707
+          "score": 0.895
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.1797
+          "score": 0.7741
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v2.md",
+          "score": 0.6721
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0253
+          "score": 0.0309
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0075
+        },
+        {
+          "doc": "en/security/incident-response.md",
+          "score": 0.0053
+        },
+        {
+          "doc": "en/platform/deployment-runbook.md",
+          "score": 0.004
+        },
+        {
+          "doc": "en/hr/travel-policy.md",
+          "score": 0.0022
+        },
+        {
+          "doc": "en/warehouse/cold-chain-sop.md",
+          "score": 0.0013
         }
       ],
-      "best_relevant_score": 1.0
+      "best_relevant_score": 1.0,
+      "delivered_chunks": 14,
+      "delivered_tokens": 996
     },
     {
       "id": "en-api-002",
@@ -2027,26 +2695,48 @@
       "ranked": [
         {
           "doc": "en/platform/api-rate-limits-v1.md",
-          "score": 0.9609
+          "score": 0.9719
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.4341
+          "score": 0.1028
         },
         {
           "doc": "en/platform/api-rate-limits-v2.md",
-          "score": 0.1052
+          "score": 0.0871
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0326
+          "score": 0.0273
+        },
+        {
+          "doc": "en/security/incident-response.md",
+          "score": 0.0014
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.003
+          "score": 0.001
+        },
+        {
+          "doc": "forms/cmr_single_pickup.pdf",
+          "score": 0.0005
+        },
+        {
+          "doc": "en/product/release-notes-3-2.md",
+          "score": 0.0005
+        },
+        {
+          "doc": "en/product/release-notes-3-3.md",
+          "score": 0.0003
+        },
+        {
+          "doc": "en/support/escalation-matrix.md",
+          "score": 0.0002
         }
       ],
-      "best_relevant_score": 0.9609
+      "best_relevant_score": 0.9719,
+      "delivered_chunks": 6,
+      "delivered_tokens": 407
     },
     {
       "id": "en-api-003",
@@ -2060,38 +2750,48 @@
       "ranked": [
         {
           "doc": "en/platform/api-rate-limits-v2.md",
-          "score": 0.9989
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0083
+          "score": 0.9987
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0078
+          "score": 0.0064
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0047
+          "score": 0.0056
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0046
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0024
+          "score": 0.0041
         },
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.0012
+          "score": 0.001
         },
         {
           "doc": "en/finance/invoice-terms.txt",
-          "score": 0.0007
+          "score": 0.0008
+        },
+        {
+          "doc": "en/platform/deployment-runbook.md",
+          "score": 0.0004
+        },
+        {
+          "doc": "en/support/escalation-matrix.md",
+          "score": 0.0004
+        },
+        {
+          "doc": "en/hr/travel-policy.md",
+          "score": 0.0004
+        },
+        {
+          "doc": "en/hr/onboarding-checklist.md",
+          "score": 0.0004
         }
       ],
-      "best_relevant_score": 0.9989
+      "best_relevant_score": 0.9987,
+      "delivered_chunks": 3,
+      "delivered_tokens": 206
     },
     {
       "id": "en-dep-001",
@@ -2105,38 +2805,48 @@
       "ranked": [
         {
           "doc": "en/platform/deployment-runbook.md",
-          "score": 0.9982
+          "score": 0.9987
+        },
+        {
+          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
+          "score": 0.1145
+        },
+        {
+          "doc": "pt/frota/manutencao-vans.md",
+          "score": 0.0938
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.042
-        },
-        {
-          "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0349
+          "score": 0.0938
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0188
+          "score": 0.0364
         },
         {
           "doc": "pt/ti/backup.txt",
-          "score": 0.0185
+          "score": 0.0202
         },
         {
           "doc": "en/hr/onboarding-checklist.md",
-          "score": 0.013
+          "score": 0.0115
         },
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.0061
+          "score": 0.0081
         },
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.0054
+          "score": 0.0062
+        },
+        {
+          "doc": "en/support/escalation-matrix.md",
+          "score": 0.0048
         }
       ],
-      "best_relevant_score": 0.9982
+      "best_relevant_score": 0.9987,
+      "delivered_chunks": 11,
+      "delivered_tokens": 888
     },
     {
       "id": "en-dep-002",
@@ -2150,30 +2860,48 @@
       "ranked": [
         {
           "doc": "en/platform/deployment-runbook.md",
-          "score": 0.9983
+          "score": 0.9978
         },
         {
           "doc": "pt/operacoes/janelas-entrega-capital.md",
-          "score": 0.0057
+          "score": 0.0076
         },
         {
           "doc": "en/hr/onboarding-checklist.md",
           "score": 0.0019
         },
         {
-          "doc": "pt/ti/relatorio-incidente-2025-03.md",
-          "score": 0.0008
+          "doc": "forms/cmr_single_pickup.pdf",
+          "score": 0.0011
         },
         {
-          "doc": "forms/cmr_single_pickup.pdf",
-          "score": 0.0008
+          "doc": "en/security/incident-response.md",
+          "score": 0.0007
+        },
+        {
+          "doc": "pt/ti/relatorio-incidente-2025-03.md",
+          "score": 0.0007
         },
         {
           "doc": "pt/rh/trabalho-remoto.md",
-          "score": 0.0006
+          "score": 0.0007
+        },
+        {
+          "doc": "en/product/release-notes-3-2.md",
+          "score": 0.0004
+        },
+        {
+          "doc": "en/hr/travel-policy.md",
+          "score": 0.0003
+        },
+        {
+          "doc": "en/support/escalation-matrix.md",
+          "score": 0.0003
         }
       ],
-      "best_relevant_score": 0.9983
+      "best_relevant_score": 0.9978,
+      "delivered_chunks": 5,
+      "delivered_tokens": 255
     },
     {
       "id": "en-sec-001",
@@ -2207,10 +2935,28 @@
         },
         {
           "doc": "pt/operacoes/manual-empilhadeira.pdf",
-          "score": 0.0008
+          "score": 0.0012
+        },
+        {
+          "doc": "en/finance/invoice-terms.txt",
+          "score": 0.0007
+        },
+        {
+          "doc": "en/platform/api-rate-limits-v2.md",
+          "score": 0.0004
+        },
+        {
+          "doc": "en/legal/nda-template.txt",
+          "score": 0.0004
+        },
+        {
+          "doc": "forms/cmr_single_pickup.pdf",
+          "score": 0.0003
         }
       ],
-      "best_relevant_score": 0.981
+      "best_relevant_score": 0.981,
+      "delivered_chunks": 5,
+      "delivered_tokens": 335
     },
     {
       "id": "en-sec-002",
@@ -2224,30 +2970,48 @@
       "ranked": [
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.9932
+          "score": 0.9934
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0149
-        },
-        {
-          "doc": "pt/ti/relatorio-incidente-2025-03.md",
-          "score": 0.0051
+          "score": 0.0168
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0038
-        },
-        {
-          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
-          "score": 0.0007
+          "score": 0.0094
         },
         {
           "doc": "en/platform/deployment-runbook.md",
-          "score": 0.0004
+          "score": 0.0009
+        },
+        {
+          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
+          "score": 0.0008
+        },
+        {
+          "doc": "en/finance/invoice-terms.txt",
+          "score": 0.0003
+        },
+        {
+          "doc": "en/hr/travel-policy.md",
+          "score": 0.0003
+        },
+        {
+          "doc": "en/legal/nda-template.txt",
+          "score": 0.0003
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "score": 0.0002
+        },
+        {
+          "doc": "en/security/data-retention.md",
+          "score": 0.0002
         }
       ],
-      "best_relevant_score": 0.9932
+      "best_relevant_score": 0.9934,
+      "delivered_chunks": 4,
+      "delivered_tokens": 255
     },
     {
       "id": "en-sec-003",
@@ -2261,38 +3025,48 @@
       "ranked": [
         {
           "doc": "en/security/data-retention.md",
-          "score": 0.9916
-        },
-        {
-          "doc": "pt/ti/backup.txt",
-          "score": 0.0334
+          "score": 0.9954
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.032
+          "score": 0.0328
         },
         {
-          "doc": "en/security/incident-response.md",
-          "score": 0.0127
-        },
-        {
-          "doc": "en/platform/api-rate-limits-v2.md",
-          "score": 0.0115
+          "doc": "pt/ti/backup.txt",
+          "score": 0.0295
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0113
+          "score": 0.0148
+        },
+        {
+          "doc": "en/security/incident-response.md",
+          "score": 0.0103
+        },
+        {
+          "doc": "en/platform/api-rate-limits-v2.md",
+          "score": 0.0103
         },
         {
           "doc": "en/platform/deployment-runbook.md",
-          "score": 0.0072
+          "score": 0.0069
+        },
+        {
+          "doc": "en/hr/corporate-card-policy.pdf",
+          "score": 0.0061
         },
         {
           "doc": "en/finance/invoice-terms.txt",
-          "score": 0.0068
+          "score": 0.0058
+        },
+        {
+          "doc": "en/legal/nda-template.txt",
+          "score": 0.005
         }
       ],
-      "best_relevant_score": 0.9916
+      "best_relevant_score": 0.9954,
+      "delivered_chunks": 12,
+      "delivered_tokens": 1044
     },
     {
       "id": "en-sec-004",
@@ -2306,34 +3080,48 @@
       "ranked": [
         {
           "doc": "en/security/data-retention.md",
-          "score": 0.9997
+          "score": 0.9996
         },
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0761
+          "score": 0.068
         },
         {
           "doc": "en/legal/nda-template.txt",
-          "score": 0.0344
-        },
-        {
-          "doc": "en/security/incident-response.md",
-          "score": 0.0122
+          "score": 0.0242
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0104
+          "score": 0.0137
+        },
+        {
+          "doc": "en/security/incident-response.md",
+          "score": 0.0105
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0051
+          "score": 0.0047
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0033
+          "score": 0.0027
+        },
+        {
+          "doc": "pt/ti/backup.txt",
+          "score": 0.002
+        },
+        {
+          "doc": "en/product/pricing-plans.md",
+          "score": 0.0014
+        },
+        {
+          "doc": "en/platform/api-rate-limits-v1.md",
+          "score": 0.0012
         }
       ],
-      "best_relevant_score": 0.9997
+      "best_relevant_score": 0.9996,
+      "delivered_chunks": 6,
+      "delivered_tokens": 461
     },
     {
       "id": "en-hr-001",
@@ -2347,42 +3135,48 @@
       "ranked": [
         {
           "doc": "en/hr/travel-policy.md",
-          "score": 0.7811
+          "score": 0.8688
         },
         {
           "doc": "en/support/escalation-matrix.md",
-          "score": 0.0266
+          "score": 0.0396
         },
         {
           "doc": "pt/ti/relatorio-incidente-2025-03.md",
-          "score": 0.015
+          "score": 0.0098
         },
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.0042
+          "score": 0.0038
         },
         {
           "doc": "pt/ti/backup.txt",
-          "score": 0.0034
-        },
-        {
-          "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.0025
+          "score": 0.0035
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0023
+          "score": 0.0033
+        },
+        {
+          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
+          "score": 0.0011
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0014
+          "score": 0.001
         },
         {
           "doc": "pt/financeiro/reembolso-despesas.md",
-          "score": 0.0008
+          "score": 0.0007
+        },
+        {
+          "doc": "pt/rh/trabalho-remoto.md",
+          "score": 0.0007
         }
       ],
-      "best_relevant_score": 0.7811
+      "best_relevant_score": 0.8688,
+      "delivered_chunks": 3,
+      "delivered_tokens": 229
     },
     {
       "id": "en-hr-002",
@@ -2396,30 +3190,48 @@
       "ranked": [
         {
           "doc": "en/hr/travel-policy.md",
-          "score": 1.0
+          "score": 0.9999
         },
         {
           "doc": "pt/financeiro/reembolso-despesas.md",
-          "score": 0.0413
-        },
-        {
-          "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0085
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0029
+          "score": 0.0414
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0025
+          "score": 0.0036
         },
         {
-          "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0018
+          "doc": "pt/clientes/sla-contrato-padrao.md",
+          "score": 0.0024
+        },
+        {
+          "doc": "en/security/incident-response.md",
+          "score": 0.0022
+        },
+        {
+          "doc": "en/warehouse/cold-chain-sop.md",
+          "score": 0.0007
+        },
+        {
+          "doc": "en/hr/corporate-card-policy.pdf",
+          "score": 0.0005
+        },
+        {
+          "doc": "pt/financeiro/aprovacao-compras.md",
+          "score": 0.0004
+        },
+        {
+          "doc": "en/platform/api-rate-limits-v2.md",
+          "score": 0.0002
+        },
+        {
+          "doc": "en/support/escalation-matrix.md",
+          "score": 0.0002
         }
       ],
-      "best_relevant_score": 1.0
+      "best_relevant_score": 0.9999,
+      "delivered_chunks": 3,
+      "delivered_tokens": 154
     },
     {
       "id": "en-hr-003",
@@ -2433,11 +3245,11 @@
       "ranked": [
         {
           "doc": "en/hr/onboarding-checklist.md",
-          "score": 0.8847
+          "score": 0.8996
         },
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.0033
+          "score": 0.0011
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
@@ -2445,22 +3257,36 @@
         },
         {
           "doc": "pt/rh/politica-ferias-2025.md",
+          "score": 0.0005
+        },
+        {
+          "doc": "pt/ti/relatorio-incidente-2025-03.md",
           "score": 0.0003
         },
         {
-          "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0002
-        },
-        {
           "doc": "pt/operacoes/procedimento-carga-perigosa.md",
-          "score": 0.0002
+          "score": 0.0003
         },
         {
           "doc": "en/platform/deployment-runbook.md",
           "score": 0.0002
+        },
+        {
+          "doc": "pt/ti/backup.txt",
+          "score": 0.0001
+        },
+        {
+          "doc": "en/finance/invoice-terms.txt",
+          "score": 0.0001
+        },
+        {
+          "doc": "en/legal/nda-template.txt",
+          "score": 0.0001
         }
       ],
-      "best_relevant_score": 0.8847
+      "best_relevant_score": 0.8996,
+      "delivered_chunks": 1,
+      "delivered_tokens": 124
     },
     {
       "id": "en-hr-004",
@@ -2477,35 +3303,45 @@
           "score": 0.9999
         },
         {
-          "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0839
-        },
-        {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0653
+          "score": 0.0789
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0507
+          "score": 0.0561
         },
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.046
-        },
-        {
-          "doc": "pt/rh/trabalho-remoto.md",
-          "score": 0.0409
+          "score": 0.0459
         },
         {
           "doc": "en/finance/invoice-terms.txt",
-          "score": 0.0044
+          "score": 0.0054
         },
         {
           "doc": "en/hr/travel-policy.md",
-          "score": 0.0025
+          "score": 0.0027
+        },
+        {
+          "doc": "en/security/incident-response.md",
+          "score": 0.0027
+        },
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "score": 0.0016
+        },
+        {
+          "doc": "en/product/pricing-plans.md",
+          "score": 0.0013
+        },
+        {
+          "doc": "en/warehouse/cold-chain-sop.md",
+          "score": 0.0005
         }
       ],
-      "best_relevant_score": 0.9999
+      "best_relevant_score": 0.9999,
+      "delivered_chunks": 6,
+      "delivered_tokens": 439
     },
     {
       "id": "en-pro-001",
@@ -2519,26 +3355,48 @@
       "ranked": [
         {
           "doc": "en/product/release-notes-3-2.md",
-          "score": 0.9997
+          "score": 0.9998
         },
         {
           "doc": "en/product/release-notes-3-3.md",
-          "score": 0.0511
+          "score": 0.0235
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0165
+          "score": 0.0062
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "score": 0.0044
         },
         {
           "doc": "pt/ti/relatorio-incidente-2025-03.md",
-          "score": 0.001
+          "score": 0.0011
+        },
+        {
+          "doc": "en/security/data-retention.md",
+          "score": 0.0007
+        },
+        {
+          "doc": "en/security/incident-response.md",
+          "score": 0.0007
+        },
+        {
+          "doc": "en/legal/nda-template.txt",
+          "score": 0.0006
+        },
+        {
+          "doc": "pt/ti/politica-senhas.txt",
+          "score": 0.0006
         },
         {
           "doc": "en/platform/deployment-runbook.md",
-          "score": 0.001
+          "score": 0.0005
         }
       ],
-      "best_relevant_score": 0.9997
+      "best_relevant_score": 0.9998,
+      "delivered_chunks": 4,
+      "delivered_tokens": 226
     },
     {
       "id": "en-pro-002",
@@ -2552,15 +3410,19 @@
       "ranked": [
         {
           "doc": "en/product/release-notes-3-3.md",
-          "score": 0.9996
+          "score": 0.9997
         },
         {
           "doc": "en/product/release-notes-3-2.md",
-          "score": 0.9763
+          "score": 0.9735
         },
         {
           "doc": "forms/cmr_single_pickup.pdf",
-          "score": 0.0084
+          "score": 0.0097
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2025.md",
+          "score": 0.0004
         },
         {
           "doc": "pt/ti/politica-senhas.txt",
@@ -2568,10 +3430,28 @@
         },
         {
           "doc": "pt/ti/relatorio-incidente-2025-03.md",
-          "score": 0.0004
+          "score": 0.0003
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0001
+        },
+        {
+          "doc": "en/security/incident-response.md",
+          "score": 0.0001
+        },
+        {
+          "doc": "en/security/data-retention.md",
+          "score": 0.0001
+        },
+        {
+          "doc": "en/platform/deployment-runbook.md",
+          "score": 0.0001
         }
       ],
-      "best_relevant_score": 0.9996
+      "best_relevant_score": 0.9997,
+      "delivered_chunks": 4,
+      "delivered_tokens": 2015
     },
     {
       "id": "en-pro-003",
@@ -2585,34 +3465,48 @@
       "ranked": [
         {
           "doc": "en/product/pricing-plans.md",
-          "score": 0.0677
+          "score": 0.0579
         },
         {
           "doc": "pt/ti/politica-senhas.txt",
-          "score": 0.0154
+          "score": 0.0185
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0089
+          "score": 0.0073
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.007
-        },
-        {
-          "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0047
+          "score": 0.0071
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0045
+          "score": 0.0053
         },
         {
           "doc": "en/platform/api-rate-limits-v2.md",
-          "score": 0.0028
+          "score": 0.0032
+        },
+        {
+          "doc": "forms/cmr_single_pickup.pdf",
+          "score": 0.0025
+        },
+        {
+          "doc": "en/product/release-notes-3-2.md",
+          "score": 0.0024
+        },
+        {
+          "doc": "en/product/release-notes-3-3.md",
+          "score": 0.002
+        },
+        {
+          "doc": "en/security/incident-response.md",
+          "score": 0.0018
         }
       ],
-      "best_relevant_score": 0.0677
+      "best_relevant_score": 0.0579,
+      "delivered_chunks": 7,
+      "delivered_tokens": 582
     },
     {
       "id": "en-pro-004",
@@ -2626,42 +3520,48 @@
       "ranked": [
         {
           "doc": "en/product/pricing-plans.md",
-          "score": 0.007
+          "score": 0.0124
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0028
-        },
-        {
-          "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0014
-        },
-        {
-          "doc": "pt/rh/trabalho-remoto.md",
-          "score": 0.0013
+          "score": 0.0027
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0013
+          "score": 0.0023
+        },
+        {
+          "doc": "pt/rh/trabalho-remoto.md",
+          "score": 0.0011
         },
         {
           "doc": "en/hr/onboarding-checklist.md",
-          "score": 0.0009
+          "score": 0.001
         },
         {
-          "doc": "en/platform/api-rate-limits-v2.md",
+          "doc": "en/platform/api-rate-limits-v1.md",
           "score": 0.0004
         },
         {
           "doc": "en/security/incident-response.md",
+          "score": 0.0003
+        },
+        {
+          "doc": "en/hr/travel-policy.md",
           "score": 0.0002
         },
         {
-          "doc": "en/platform/api-rate-limits-v1.md",
-          "score": 0.0002
+          "doc": "en/security/data-retention.md",
+          "score": 0.0001
+        },
+        {
+          "doc": "en/finance/invoice-terms.txt",
+          "score": 0.0001
         }
       ],
-      "best_relevant_score": 0.007
+      "best_relevant_score": 0.0124,
+      "delivered_chunks": 1,
+      "delivered_tokens": 102
     },
     {
       "id": "en-sup-001",
@@ -2675,34 +3575,48 @@
       "ranked": [
         {
           "doc": "en/support/escalation-matrix.md",
-          "score": 0.9641
+          "score": 0.9731
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.4914
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.2563
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0401
-        },
-        {
-          "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0165
+          "score": 0.4874
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0052
+          "score": 0.0322
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0256
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v2.md",
+          "score": 0.0214
         },
         {
           "doc": "en/hr/travel-policy.md",
-          "score": 0.005
+          "score": 0.0048
+        },
+        {
+          "doc": "en/security/incident-response.md",
+          "score": 0.0032
+        },
+        {
+          "doc": "en/finance/invoice-terms.txt",
+          "score": 0.0031
+        },
+        {
+          "doc": "en/platform/deployment-runbook.md",
+          "score": 0.0017
+        },
+        {
+          "doc": "en/hr/onboarding-checklist.md",
+          "score": 0.0014
         }
       ],
-      "best_relevant_score": 0.9641
+      "best_relevant_score": 0.9731,
+      "delivered_chunks": 8,
+      "delivered_tokens": 625
     },
     {
       "id": "en-fin-001",
@@ -2716,34 +3630,48 @@
       "ranked": [
         {
           "doc": "en/finance/invoice-terms.txt",
-          "score": 0.8208
+          "score": 0.8567
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0451
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0433
+          "score": 0.0579
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0408
+          "score": 0.0535
         },
         {
-          "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0403
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0425
         },
         {
           "doc": "pt/financeiro/reembolso-despesas.md",
-          "score": 0.0217
+          "score": 0.0386
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-padrao.md",
+          "score": 0.033
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0158
+          "score": 0.0193
+        },
+        {
+          "doc": "en/hr/travel-policy.md",
+          "score": 0.0026
+        },
+        {
+          "doc": "forms/cmr_single_pickup.pdf",
+          "score": 0.0022
+        },
+        {
+          "doc": "en/hr/corporate-card-policy.pdf",
+          "score": 0.0015
         }
       ],
-      "best_relevant_score": 0.8208
+      "best_relevant_score": 0.8567,
+      "delivered_chunks": 14,
+      "delivered_tokens": 941
     },
     {
       "id": "en-wh-001",
@@ -2757,34 +3685,48 @@
       "ranked": [
         {
           "doc": "en/warehouse/cold-chain-sop.md",
-          "score": 0.9964
+          "score": 0.9975
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0033
-        },
-        {
-          "doc": "en/security/incident-response.md",
-          "score": 0.0005
-        },
-        {
-          "doc": "pt/financeiro/reembolso-despesas.md",
-          "score": 0.0004
-        },
-        {
-          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
-          "score": 0.0004
+          "score": 0.0045
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
           "score": 0.0003
         },
         {
-          "doc": "pt/frota/manutencao-caminhoes.md",
+          "doc": "pt/financeiro/reembolso-despesas.md",
           "score": 0.0003
+        },
+        {
+          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
+          "score": 0.0003
+        },
+        {
+          "doc": "en/hr/travel-policy.md",
+          "score": 0.0003
+        },
+        {
+          "doc": "en/security/incident-response.md",
+          "score": 0.0002
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2025.md",
+          "score": 0.0002
+        },
+        {
+          "doc": "pt/frota/manutencao-caminhoes.md",
+          "score": 0.0002
+        },
+        {
+          "doc": "en/platform/deployment-runbook.md",
+          "score": 0.0002
         }
       ],
-      "best_relevant_score": 0.9964
+      "best_relevant_score": 0.9975,
+      "delivered_chunks": 1,
+      "delivered_tokens": 55
     },
     {
       "id": "en-wh-002",
@@ -2802,26 +3744,44 @@
         },
         {
           "doc": "pt/operacoes/manual-empilhadeira.pdf",
-          "score": 0.0233
+          "score": 0.0344
         },
         {
           "doc": "en/warehouse/cold-chain-sop.md",
-          "score": 0.021
+          "score": 0.0138
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0074
+          "score": 0.0078
         },
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0069
+          "score": 0.0064
         },
         {
           "doc": "en/hr/travel-policy.md",
           "score": 0.0017
+        },
+        {
+          "doc": "en/security/incident-response.md",
+          "score": 0.0011
+        },
+        {
+          "doc": "forms/cmr_single_pickup.pdf",
+          "score": 0.0008
+        },
+        {
+          "doc": "en/support/escalation-matrix.md",
+          "score": 0.0006
+        },
+        {
+          "doc": "en/platform/api-rate-limits-v2.md",
+          "score": 0.0005
         }
       ],
-      "best_relevant_score": 1.0
+      "best_relevant_score": 1.0,
+      "delivered_chunks": 6,
+      "delivered_tokens": 495
     },
     {
       "id": "en-leg-001",
@@ -2835,38 +3795,48 @@
       "ranked": [
         {
           "doc": "en/legal/nda-template.txt",
-          "score": 0.8512
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0284
+          "score": 0.7625
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0111
+          "score": 0.0117
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2025.md",
+          "score": 0.0088
         },
         {
           "doc": "pt/ti/politica-senhas.txt",
-          "score": 0.0055
+          "score": 0.0056
         },
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.0037
+          "score": 0.0048
         },
         {
           "doc": "en/security/data-retention.md",
-          "score": 0.0036
+          "score": 0.0029
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0024
+          "score": 0.0027
+        },
+        {
+          "doc": "en/hr/onboarding-checklist.md",
+          "score": 0.002
         },
         {
           "doc": "en/finance/invoice-terms.txt",
-          "score": 0.0022
+          "score": 0.0019
+        },
+        {
+          "doc": "en/hr/travel-policy.md",
+          "score": 0.0019
         }
       ],
-      "best_relevant_score": 0.8512
+      "best_relevant_score": 0.7625,
+      "delivered_chunks": 4,
+      "delivered_tokens": 415
     },
     {
       "id": "en-cross-001",
@@ -2884,42 +3854,44 @@
         },
         {
           "doc": "pt/clientes/tabela-frete-2026.pdf",
-          "score": 0.2094
+          "score": 0.2099
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.1549
+          "score": 0.1021
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.1004
+          "score": 0.0725
         },
         {
           "doc": "en/warehouse/forklift-safety.pdf",
-          "score": 0.0186
+          "score": 0.0154
         },
         {
           "doc": "en/warehouse/cold-chain-sop.md",
-          "score": 0.0073
-        },
-        {
-          "doc": "pt/financeiro/reembolso-despesas.md",
-          "score": 0.0048
-        },
-        {
-          "doc": "pt/financeiro/aprovacao-compras.md",
-          "score": 0.0034
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0026
+          "score": 0.0051
         },
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0017
+          "score": 0.0029
+        },
+        {
+          "doc": "pt/financeiro/aprovacao-compras.md",
+          "score": 0.0028
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0022
+        },
+        {
+          "doc": "pt/rh/trabalho-remoto.md",
+          "score": 0.0015
         }
       ],
-      "best_relevant_score": 1.0
+      "best_relevant_score": 1.0,
+      "delivered_chunks": 6,
+      "delivered_tokens": 640
     },
     {
       "id": "en-cross-002",
@@ -2937,42 +3909,44 @@
         },
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.752
+          "score": 0.6712
         },
         {
           "doc": "pt/ti/politica-senhas.txt",
-          "score": 0.6539
+          "score": 0.6186
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.3405
+          "score": 0.4291
         },
         {
           "doc": "en/security/data-retention.md",
-          "score": 0.0286
-        },
-        {
-          "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0232
+          "score": 0.0289
         },
         {
           "doc": "pt/ti/relatorio-incidente-2025-03.md",
-          "score": 0.0159
+          "score": 0.0212
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0146
+          "score": 0.0191
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0057
+          "score": 0.0064
         },
         {
-          "doc": "en/hr/onboarding-checklist.md",
-          "score": 0.0026
+          "doc": "en/finance/invoice-terms.txt",
+          "score": 0.0037
+        },
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "score": 0.003
         }
       ],
-      "best_relevant_score": 0.9999
+      "best_relevant_score": 0.9999,
+      "delivered_chunks": 9,
+      "delivered_tokens": 768
     },
     {
       "id": "en-cross-003",
@@ -2986,38 +3960,48 @@
       "ranked": [
         {
           "doc": "pt/ti/politica-senhas.txt",
-          "score": 0.9958
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0383
+          "score": 0.9946
         },
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0241
+          "score": 0.0286
         },
         {
-          "doc": "pt/ti/backup.txt",
-          "score": 0.0179
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0235
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0096
+          "score": 0.0125
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2024.md",
+          "score": 0.0118
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0082
+          "score": 0.0058
         },
         {
           "doc": "pt/rh/trabalho-remoto.md",
-          "score": 0.007
+          "score": 0.0043
+        },
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "score": 0.0042
         },
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.0043
+          "score": 0.0028
+        },
+        {
+          "doc": "en/hr/travel-policy.md",
+          "score": 0.0007
         }
       ],
-      "best_relevant_score": 0.9958
+      "best_relevant_score": 0.9946,
+      "delivered_chunks": 7,
+      "delivered_tokens": 440
     },
     {
       "id": "pt-neg-001",
@@ -3030,31 +4014,49 @@
       "nothing_found": false,
       "ranked": [
         {
-          "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0299
+          "doc": "pt/rh/politica-ferias-2025.md",
+          "score": 0.0281
         },
         {
-          "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.0198
+          "doc": "pt/rh/politica-ferias-2024.md",
+          "score": 0.0255
         },
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0084
-        },
-        {
-          "doc": "en/hr/travel-policy.md",
-          "score": 0.0054
+          "score": 0.0067
         },
         {
           "doc": "pt/rh/trabalho-remoto.md",
-          "score": 0.0035
+          "score": 0.0047
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.002
+          "score": 0.0041
+        },
+        {
+          "doc": "en/hr/travel-policy.md",
+          "score": 0.0038
+        },
+        {
+          "doc": "pt/frota/manutencao-caminhoes.md",
+          "score": 0.0017
+        },
+        {
+          "doc": "en/platform/deployment-runbook.md",
+          "score": 0.0016
+        },
+        {
+          "doc": "pt/ti/politica-senhas.txt",
+          "score": 0.0013
+        },
+        {
+          "doc": "en/hr/corporate-card-policy.pdf",
+          "score": 0.0013
         }
       ],
-      "best_relevant_score": null
+      "best_relevant_score": null,
+      "delivered_chunks": 4,
+      "delivered_tokens": 193
     },
     {
       "id": "pt-neg-002",
@@ -3067,36 +4069,36 @@
       "nothing_found": false,
       "ranked": [
         {
-          "doc": "pt/financeiro/reembolso-despesas.md",
-          "score": 0.0223
-        },
-        {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0215
+          "score": 0.0259
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0162
+          "score": 0.0246
+        },
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "score": 0.0236
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.006
-        },
-        {
-          "doc": "pt/rh/trabalho-remoto.md",
-          "score": 0.0033
-        },
-        {
-          "doc": "en/hr/travel-policy.md",
-          "score": 0.0028
+          "score": 0.0053
         },
         {
           "doc": "pt/clientes/tabela-frete-2026.pdf",
-          "score": 0.0019
+          "score": 0.0021
+        },
+        {
+          "doc": "en/hr/travel-policy.md",
+          "score": 0.002
+        },
+        {
+          "doc": "pt/financeiro/aprovacao-compras.md",
+          "score": 0.002
         },
         {
           "doc": "en/hr/corporate-card-policy.pdf",
-          "score": 0.0016
+          "score": 0.002
         },
         {
           "doc": "en/product/pricing-plans.md",
@@ -3107,7 +4109,9 @@
           "score": 0.0004
         }
       ],
-      "best_relevant_score": null
+      "best_relevant_score": null,
+      "delivered_chunks": 4,
+      "delivered_tokens": 251
     },
     {
       "id": "pt-neg-003",
@@ -3121,34 +4125,48 @@
       "ranked": [
         {
           "doc": "pt/operacoes/janelas-entrega-capital.md",
-          "score": 0.1419
+          "score": 0.132
         },
         {
           "doc": "pt/ti/relatorio-incidente-2025-03.md",
-          "score": 0.1374
+          "score": 0.0963
         },
         {
           "doc": "en/platform/deployment-runbook.md",
-          "score": 0.0416
+          "score": 0.0444
         },
         {
           "doc": "en/warehouse/cold-chain-sop.md",
-          "score": 0.0259
+          "score": 0.0288
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0128
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0047
+          "score": 0.0106
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0038
+          "score": 0.0054
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-padrao.md",
+          "score": 0.0048
+        },
+        {
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "score": 0.0024
+        },
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "score": 0.002
+        },
+        {
+          "doc": "pt/ti/backup.txt",
+          "score": 0.0019
         }
       ],
-      "best_relevant_score": null
+      "best_relevant_score": null,
+      "delivered_chunks": 8,
+      "delivered_tokens": 436
     },
     {
       "id": "pt-neg-004",
@@ -3162,34 +4180,48 @@
       "ranked": [
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.042
+          "score": 0.0406
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.02
-        },
-        {
-          "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0197
+          "score": 0.0199
         },
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0167
+          "score": 0.0166
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0108
+          "score": 0.0157
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "score": 0.0117
         },
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.0089
+          "score": 0.0112
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0086
+          "score": 0.0098
+        },
+        {
+          "doc": "pt/rh/trabalho-remoto.md",
+          "score": 0.006
+        },
+        {
+          "doc": "en/finance/invoice-terms.txt",
+          "score": 0.0057
+        },
+        {
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "score": 0.0047
         }
       ],
-      "best_relevant_score": null
+      "best_relevant_score": null,
+      "delivered_chunks": 16,
+      "delivered_tokens": 1027
     },
     {
       "id": "pt-neg-005",
@@ -3203,42 +4235,48 @@
       "ranked": [
         {
           "doc": "en/warehouse/forklift-safety.pdf",
-          "score": 0.0161
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0058
+          "score": 0.0121
         },
         {
           "doc": "pt/frota/manutencao-caminhoes.md",
-          "score": 0.0045
+          "score": 0.004
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0036
-        },
-        {
-          "doc": "pt/clientes/tabela-frete-2026.pdf",
-          "score": 0.003
-        },
-        {
-          "doc": "pt/operacoes/manual-empilhadeira.pdf",
-          "score": 0.0029
+          "score": 0.0038
         },
         {
           "doc": "pt/frota/manutencao-vans.md",
-          "score": 0.0027
+          "score": 0.0034
         },
         {
-          "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0017
+          "doc": "pt/operacoes/manual-empilhadeira.pdf",
+          "score": 0.0032
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-padrao.md",
+          "score": 0.0031
+        },
+        {
+          "doc": "pt/clientes/tabela-frete-2026.pdf",
+          "score": 0.0018
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0016
+          "score": 0.0018
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v2.md",
+          "score": 0.0018
+        },
+        {
+          "doc": "pt/pagamentos/webhooks-v2.md",
+          "score": 0.0015
         }
       ],
-      "best_relevant_score": null
+      "best_relevant_score": null,
+      "delivered_chunks": 1,
+      "delivered_tokens": 121
     },
     {
       "id": "pt-neg-006",
@@ -3252,30 +4290,48 @@
       "ranked": [
         {
           "doc": "en/hr/corporate-card-policy.pdf",
-          "score": 0.0113
-        },
-        {
-          "doc": "en/hr/travel-policy.md",
-          "score": 0.0107
+          "score": 0.0117
         },
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.0088
+          "score": 0.0098
         },
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0071
-        },
-        {
-          "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0065
+          "score": 0.0093
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0041
+          "score": 0.0047
+        },
+        {
+          "doc": "en/hr/travel-policy.md",
+          "score": 0.0044
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-padrao.md",
+          "score": 0.004
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "score": 0.0031
+        },
+        {
+          "doc": "pt/frota/manutencao-vans.md",
+          "score": 0.003
+        },
+        {
+          "doc": "en/platform/api-rate-limits-v2.md",
+          "score": 0.0017
+        },
+        {
+          "doc": "pt/ti/backup.txt",
+          "score": 0.0016
         }
       ],
-      "best_relevant_score": null
+      "best_relevant_score": null,
+      "delivered_chunks": 3,
+      "delivered_tokens": 220
     },
     {
       "id": "pt-neg-007",
@@ -3289,26 +4345,26 @@
       "ranked": [
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0221
+          "score": 0.0172
         },
         {
           "doc": "pt/frota/manutencao-caminhoes.md",
-          "score": 0.0095
+          "score": 0.0125
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0088
+          "score": 0.0098
+        },
+        {
+          "doc": "pt/ti/relatorio-incidente-2025-03.md",
+          "score": 0.0086
         },
         {
           "doc": "pt/frota/manutencao-vans.md",
-          "score": 0.0078
+          "score": 0.0066
         },
         {
-          "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0061
-        },
-        {
-          "doc": "pt/financeiro/reembolso-despesas.md",
+          "doc": "pt/rh/politica-ferias-2024.md",
           "score": 0.0053
         },
         {
@@ -3316,15 +4372,21 @@
           "score": 0.0048
         },
         {
-          "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0047
+          "doc": "pt/financeiro/reembolso-despesas.md",
+          "score": 0.0042
         },
         {
-          "doc": "pt/ti/relatorio-incidente-2025-03.md",
-          "score": 0.0041
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "score": 0.004
+        },
+        {
+          "doc": "pt/ti/backup.txt",
+          "score": 0.0039
         }
       ],
-      "best_relevant_score": null
+      "best_relevant_score": null,
+      "delivered_chunks": 7,
+      "delivered_tokens": 350
     },
     {
       "id": "en-neg-008",
@@ -3337,31 +4399,49 @@
       "nothing_found": false,
       "ranked": [
         {
-          "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.0767
+          "doc": "pt/rh/politica-ferias-2024.md",
+          "score": 0.0984
         },
         {
-          "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0421
+          "doc": "pt/rh/politica-ferias-2025.md",
+          "score": 0.0734
         },
         {
           "doc": "pt/ti/politica-senhas.txt",
-          "score": 0.0244
+          "score": 0.0232
         },
         {
           "doc": "pt/ti/backup.txt",
-          "score": 0.018
+          "score": 0.0101
         },
         {
           "doc": "en/security/data-retention.md",
-          "score": 0.0043
+          "score": 0.0046
         },
         {
-          "doc": "pt/rh/trabalho-remoto.md",
-          "score": 0.0031
+          "doc": "en/warehouse/cold-chain-sop.md",
+          "score": 0.0017
+        },
+        {
+          "doc": "en/legal/nda-template.txt",
+          "score": 0.0014
+        },
+        {
+          "doc": "en/warehouse/forklift-safety.pdf",
+          "score": 0.0008
+        },
+        {
+          "doc": "en/security/incident-response.md",
+          "score": 0.0007
+        },
+        {
+          "doc": "en/product/release-notes-3-3.md",
+          "score": 0.0005
         }
       ],
-      "best_relevant_score": null
+      "best_relevant_score": null,
+      "delivered_chunks": 7,
+      "delivered_tokens": 599
     },
     {
       "id": "en-neg-009",
@@ -3375,34 +4455,48 @@
       "ranked": [
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.4535
-        },
-        {
-          "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.2701
+          "score": 0.5054
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.2143
+          "score": 0.1824
         },
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.1329
+          "score": 0.1079
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.0208
+          "score": 0.027
         },
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0207
+          "score": 0.0243
         },
         {
           "doc": "pt/operacoes/procedimento-carga-perigosa.md",
-          "score": 0.0109
+          "score": 0.0148
+        },
+        {
+          "doc": "pt/clientes/sla-contrato-premium.md",
+          "score": 0.0079
+        },
+        {
+          "doc": "pt/frota/manutencao-caminhoes.md",
+          "score": 0.0073
+        },
+        {
+          "doc": "pt/rh/trabalho-remoto.md",
+          "score": 0.0073
+        },
+        {
+          "doc": "pt/ti/backup.txt",
+          "score": 0.0052
         }
       ],
-      "best_relevant_score": null
+      "best_relevant_score": null,
+      "delivered_chunks": 17,
+      "delivered_tokens": 1149
     },
     {
       "id": "en-neg-010",
@@ -3416,30 +4510,48 @@
       "ranked": [
         {
           "doc": "pt/clientes/sla-contrato-padrao.md",
-          "score": 0.0109
-        },
-        {
-          "doc": "pt/seguranca/epi-armazem.md",
-          "score": 0.0065
+          "score": 0.0207
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0065
+          "score": 0.008
+        },
+        {
+          "doc": "pt/seguranca/epi-armazem.md",
+          "score": 0.0052
         },
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.0012
+          "score": 0.0013
         },
         {
-          "doc": "pt/operacoes/procedimento-carga-perigosa.md",
+          "doc": "en/product/release-notes-3-2.md",
+          "score": 0.0004
+        },
+        {
+          "doc": "en/hr/travel-policy.md",
           "score": 0.0004
         },
         {
           "doc": "forms/cmr_single_pickup.pdf",
           "score": 0.0004
+        },
+        {
+          "doc": "en/product/release-notes-3-3.md",
+          "score": 0.0003
+        },
+        {
+          "doc": "en/support/escalation-matrix.md",
+          "score": 0.0003
+        },
+        {
+          "doc": "en/platform/api-rate-limits-v2.md",
+          "score": 0.0003
         }
       ],
-      "best_relevant_score": null
+      "best_relevant_score": null,
+      "delivered_chunks": 4,
+      "delivered_tokens": 137
     },
     {
       "id": "en-neg-011",
@@ -3452,31 +4564,49 @@
       "nothing_found": true,
       "ranked": [
         {
-          "doc": "en/product/release-notes-3-3.md",
-          "score": 0.0027
+          "doc": "pt/pagamentos/servico-pagamento-v2.md",
+          "score": 0.0041
         },
         {
           "doc": "en/product/release-notes-3-2.md",
-          "score": 0.0026
+          "score": 0.0035
+        },
+        {
+          "doc": "en/product/release-notes-3-3.md",
+          "score": 0.0025
         },
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.0019
-        },
-        {
-          "doc": "pt/rh/trabalho-remoto.md",
-          "score": 0.0017
-        },
-        {
-          "doc": "en/platform/deployment-runbook.md",
-          "score": 0.0016
+          "score": 0.0023
         },
         {
           "doc": "en/platform/api-rate-limits-v2.md",
-          "score": 0.0014
+          "score": 0.0016
+        },
+        {
+          "doc": "en/warehouse/cold-chain-sop.md",
+          "score": 0.0004
+        },
+        {
+          "doc": "en/legal/nda-template.txt",
+          "score": 0.0004
+        },
+        {
+          "doc": "en/security/data-retention.md",
+          "score": 0.0004
+        },
+        {
+          "doc": "en/hr/travel-policy.md",
+          "score": 0.0004
+        },
+        {
+          "doc": "en/platform/deployment-runbook.md",
+          "score": 0.0004
         }
       ],
-      "best_relevant_score": null
+      "best_relevant_score": null,
+      "delivered_chunks": 0,
+      "delivered_tokens": 0
     },
     {
       "id": "en-neg-012",
@@ -3490,34 +4620,48 @@
       "ranked": [
         {
           "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0232
+          "score": 0.0273
         },
         {
           "doc": "pt/rh/politica-ferias-2025.md",
-          "score": 0.0182
+          "score": 0.0163
         },
         {
           "doc": "pt/pagamentos/servico-pagamento-v1.md",
-          "score": 0.0129
-        },
-        {
-          "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0085
+          "score": 0.0134
         },
         {
           "doc": "pt/pagamentos/webhooks-v2.md",
-          "score": 0.005
+          "score": 0.0075
+        },
+        {
+          "doc": "pt/pagamentos/servico-pagamento-v2.md",
+          "score": 0.0062
         },
         {
           "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0039
+          "score": 0.0045
         },
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.0022
+          "score": 0.0031
+        },
+        {
+          "doc": "en/warehouse/cold-chain-sop.md",
+          "score": 0.0025
+        },
+        {
+          "doc": "pt/ti/backup.txt",
+          "score": 0.0025
+        },
+        {
+          "doc": "en/platform/deployment-runbook.md",
+          "score": 0.0015
         }
       ],
-      "best_relevant_score": null
+      "best_relevant_score": null,
+      "delivered_chunks": 7,
+      "delivered_tokens": 468
     },
     {
       "id": "en-neg-013",
@@ -3530,35 +4674,49 @@
       "nothing_found": false,
       "ranked": [
         {
-          "doc": "en/security/incident-response.md",
-          "score": 0.0071
+          "doc": "pt/rh/trabalho-remoto.md",
+          "score": 0.0062
         },
         {
           "doc": "en/hr/travel-policy.md",
-          "score": 0.0063
+          "score": 0.0055
         },
         {
-          "doc": "pt/rh/trabalho-remoto.md",
-          "score": 0.0063
+          "doc": "pt/operacoes/janelas-entrega-capital.md",
+          "score": 0.0054
         },
         {
-          "doc": "pt/rh/politica-ferias-2024.md",
-          "score": 0.0026
+          "doc": "en/security/incident-response.md",
+          "score": 0.0051
         },
         {
           "doc": "en/hr/onboarding-checklist.md",
-          "score": 0.0017
+          "score": 0.0024
         },
         {
-          "doc": "pt/rh/politica-ferias-2025.md",
+          "doc": "pt/rh/politica-ferias-2024.md",
+          "score": 0.0022
+        },
+        {
+          "doc": "en/platform/deployment-runbook.md",
           "score": 0.001
         },
         {
+          "doc": "en/security/data-retention.md",
+          "score": 0.0007
+        },
+        {
+          "doc": "pt/rh/politica-ferias-2025.md",
+          "score": 0.0006
+        },
+        {
           "doc": "en/product/release-notes-3-2.md",
-          "score": 0.0009
+          "score": 0.0006
         }
       ],
-      "best_relevant_score": null
+      "best_relevant_score": null,
+      "delivered_chunks": 4,
+      "delivered_tokens": 240
     },
     {
       "id": "en-neg-014",
@@ -3571,35 +4729,49 @@
       "nothing_found": false,
       "ranked": [
         {
+          "doc": "pt/pagamentos/servico-pagamento-v1.md",
+          "score": 0.0143
+        },
+        {
           "doc": "pt/pagamentos/servico-pagamento-v2.md",
-          "score": 0.0119
+          "score": 0.0133
         },
         {
           "doc": "pt/rh/trabalho-remoto.md",
-          "score": 0.011
+          "score": 0.0101
         },
         {
-          "doc": "pt/clientes/sla-contrato-premium.md",
-          "score": 0.0093
+          "doc": "pt/clientes/sla-contrato-padrao.md",
+          "score": 0.0066
         },
         {
           "doc": "en/security/incident-response.md",
-          "score": 0.0025
+          "score": 0.0031
         },
         {
           "doc": "en/hr/corporate-card-policy.pdf",
+          "score": 0.0013
+        },
+        {
+          "doc": "pt/financeiro/aprovacao-compras.md",
           "score": 0.0008
         },
         {
-          "doc": "en/hr/travel-policy.md",
+          "doc": "en/product/release-notes-3-3.md",
           "score": 0.0003
         },
         {
-          "doc": "en/platform/api-rate-limits-v2.md",
+          "doc": "pt/operacoes/manual-empilhadeira.pdf",
+          "score": 0.0002
+        },
+        {
+          "doc": "en/hr/travel-policy.md",
           "score": 0.0002
         }
       ],
-      "best_relevant_score": null
+      "best_relevant_score": null,
+      "delivered_chunks": 4,
+      "delivered_tokens": 221
     },
     {
       "id": "en-neg-015",
@@ -3642,9 +4814,19 @@
         {
           "doc": "en/legal/nda-template.txt",
           "score": 0.0005
+        },
+        {
+          "doc": "forms/cmr_single_pickup.pdf",
+          "score": 0.0003
+        },
+        {
+          "doc": "en/platform/deployment-runbook.md",
+          "score": 0.0002
         }
       ],
-      "best_relevant_score": null
+      "best_relevant_score": null,
+      "delivered_chunks": 0,
+      "delivered_tokens": 0
     }
   ]
 }

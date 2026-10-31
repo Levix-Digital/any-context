@@ -30,4 +30,11 @@ Local runs, lexical configuration (`lexical-rerank`, mmarco), 2026-10-31, ONNX R
 
 - Every question has the same first relevant rank, delivered hit and nothing-found outcome on both revisions: the selection loses nothing the old one delivered. The gap to the committed baseline (MRR 0.9500) is the same on both and comes from the local runtime, not from this change; the baselines are refreshed from the CI run.
 - The largest delivered context is 15 chunks and 2,213 estimated tokens: on this corpus (short chunks of about 90 tokens) the bands, not the budget, bound the selection. Budgets of 3,000, 4,000 and 6,000 give the same result, so the corpus cannot tell them apart; 4,000 stays (about today's 14,000 characters) and IMP-049 revisits it with the model window.
-- The dense configuration runs in CI on the pull request.
+- CI on the pull request (head `225a7d9`), both gates green; baselines refreshed from its RESULT-JSON:
+
+| Configuration | MRR@10 | HitRate@5 | delivered hit rate | nothing-found | false nothing-found | delivered chunks / tokens (mean) |
+|---|---:|---:|---:|---:|---:|---|
+| `lexical-rerank` (baseline `872575d` -> PR) | 0.9500 -> 0.9429 | 0.9571 -> 0.9571 | 0.9571 -> 0.9571 | 0.4000 -> 0.4000 | 0.0286 -> 0.0286 | 4.67 / 401 |
+| `dense-local-bge-m3-rerank` | 0.9714 -> 0.9714 | 1.0 -> 1.0 | 1.0 -> 1.0 | 0.1333 -> 0.1333 | 0.0 -> 0.0 | 6.92 / 590 |
+
+The only change is `pt-cross-002` (rank 1 -> 2): `api-rate-limits-v1.md` (0.9991) now edges `api-rate-limits-v2.md` (0.9990), a near-tie in reranker scores of the ranking pass, which the selection does not touch; the local runs show the same rank on dev and on this branch.
