@@ -15,7 +15,7 @@ pub use ingestion::{
 };
 pub use retrieval::{
     HybridRetrieverEngine, QueryPreprocessor, ProcessedQuery,
-    NativeHybridPipeline, HybridSearchRequest, HybridSearchResult, RetrievalPreset,
+    NativeHybridPipeline, HybridSearchRequest, HybridSearchResult,
     estimate_token_count, truncate_to_token_ceiling, get_embedding_token_limit_rs,
     extract_temporal_clauses_native, expand_query_temporal_native, extract_filename_mentions_native,
 };

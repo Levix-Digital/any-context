@@ -13,6 +13,16 @@ use crate::hardware::ProfileTier;
 /// improve the hit rate measurably.
 pub const CANDIDATES_PER_LIST: usize = 30;
 
+/// Most estimated tokens of evidence a Fast search selects (IMP-045). Today's room (about 14
+/// thousand characters) filled by relevance; IMP-049 bounds it by the chat model window.
+pub const FAST_TOKEN_BUDGET: usize = 4_000;
+
+/// Most estimated tokens of evidence each Deep Search batch selects (IMP-045).
+pub const DEEP_TOKEN_BUDGET: usize = 6_000;
+
+/// Most estimated tokens of evidence the agent's search tool returns (IMP-045).
+pub const TOOL_TOKEN_BUDGET: usize = 3_000;
+
 /// Workspace searched alongside the user's workspace for AnyContext's own documentation.
 pub const GLOBAL_WORKSPACE: &str = "Global";
 
@@ -22,9 +32,8 @@ pub fn fast_request(query: &str, workspace: &str, tier: ProfileTier) -> HybridSe
         query_text: query.to_string(),
         workspace: Some(workspace.to_string()),
         target_workspaces: vec![GLOBAL_WORKSPACE.to_string()],
-        top_k: 6,
         candidate_pool_k: CANDIDATES_PER_LIST,
-        max_density_chars: 14_000,
+        token_budget: FAST_TOKEN_BUDGET,
         table_name: "workspace_chunks".to_string(),
         rerank_depth: profile_depth(tier, SearchMode::Fast),
         rerank_budget_ms: Some(time_budget_ms(SearchMode::Fast)),
@@ -39,9 +48,8 @@ pub fn deep_request(query: &str, workspace: &str, tier: ProfileTier) -> HybridSe
         query_text: query.to_string(),
         workspace: Some(workspace.to_string()),
         target_workspaces: vec![GLOBAL_WORKSPACE.to_string()],
-        top_k: 8,
         candidate_pool_k: CANDIDATES_PER_LIST,
-        max_density_chars: 16_000,
+        token_budget: DEEP_TOKEN_BUDGET,
         table_name: "workspace_chunks".to_string(),
         rerank_depth: profile_depth(tier, SearchMode::Deep),
         rerank_budget_ms: Some(time_budget_ms(SearchMode::Deep)),
@@ -51,7 +59,7 @@ pub fn deep_request(query: &str, workspace: &str, tier: ProfileTier) -> HybridSe
 
 /// Request of the agent's search tool: a Fast search with a smaller result.
 pub fn tool_request(query: &str, workspace: &str, tier: ProfileTier) -> HybridSearchRequest {
-    HybridSearchRequest { top_k: 5, max_density_chars: 12_000, ..fast_request(query, workspace, tier) }
+    HybridSearchRequest { token_budget: TOOL_TOKEN_BUDGET, ..fast_request(query, workspace, tier) }
 }
 
 #[cfg(test)]
@@ -64,7 +72,7 @@ mod tests {
         assert_eq!(req.query_text, "q");
         assert_eq!(req.workspace.as_deref(), Some("Docs"));
         assert_eq!(req.target_workspaces, vec!["Global".to_string()]);
-        assert_eq!((req.top_k, req.candidate_pool_k, req.max_density_chars), (6, 30, 14_000));
+        assert_eq!((req.candidate_pool_k, req.token_budget), (30, 4_000));
         assert_eq!(req.table_name, "workspace_chunks");
         assert_eq!((req.rerank_depth, req.rerank_budget_ms), (30, Some(1_000)));
     }
@@ -73,8 +81,13 @@ mod tests {
     fn deep_request_keeps_the_product_defaults() {
         let req = deep_request("q", "Docs", ProfileTier::SmartBalanced);
         assert_eq!(req.target_workspaces, vec!["Global".to_string()]);
-        assert_eq!((req.top_k, req.candidate_pool_k, req.max_density_chars), (8, 30, 16_000));
+        assert_eq!((req.candidate_pool_k, req.token_budget), (30, 6_000));
         assert_eq!((req.rerank_depth, req.rerank_budget_ms), (50, Some(3_000)));
+    }
+
+    #[test]
+    fn budgets_grow_from_the_tool_to_fast_to_deep() {
+        assert!(TOOL_TOKEN_BUDGET < FAST_TOKEN_BUDGET && FAST_TOKEN_BUDGET < DEEP_TOKEN_BUDGET);
     }
 
     #[test]
@@ -84,9 +97,9 @@ mod tests {
     }
 
     #[test]
-    fn tool_request_is_a_smaller_fast_request() {
+    fn tool_request_is_a_fast_request_with_a_smaller_budget() {
         let req = tool_request("q", "Docs", ProfileTier::WorkstationPro);
-        assert_eq!((req.top_k, req.max_density_chars), (5, 12_000));
+        assert_eq!(req.token_budget, 3_000);
         assert_eq!(req.target_workspaces, vec!["Global".to_string()]);
         assert_eq!((req.rerank_depth, req.rerank_budget_ms), (40, Some(1_000)));
     }

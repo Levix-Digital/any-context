@@ -18,7 +18,7 @@ use any_context_core_rs::retrieval::{fast_request, HybridSearchRequest, HybridSe
 use any_context_core_rs::storage::{NativeConfigDb, NativeLanceStore};
 
 use crate::corpus::{hash_bytes, normalize_whitespace, Corpus};
-use crate::metrics::{self, Outcome, RankedDoc, DEPTH};
+use crate::metrics::{self, Outcome, RankedDoc};
 use crate::questions::{validate, LabelError, Question, QuestionFile};
 use crate::result::{Retrievers, RunConfig, RunResult, SCHEMA};
 
@@ -319,11 +319,10 @@ pub fn delivered_request(query: &str) -> HybridSearchRequest {
     req
 }
 
-/// The Fast request opened to the top 10 and without the density cut, for the ranking metrics.
+/// The Fast request without the token budget, for the ranking metrics, which read its top 10.
 pub fn ranking_request(query: &str) -> HybridSearchRequest {
     let mut req = delivered_request(query);
-    req.top_k = DEPTH;
-    req.max_density_chars = usize::MAX;
+    req.token_budget = usize::MAX;
     req
 }
 
@@ -347,6 +346,8 @@ async fn ask(pipeline: &Passes, corpus: &Corpus, q: &Question) -> Result<Outcome
         ranked: ranked_docs(corpus, &ranking),
         ranked_chunks: ranking.iter().map(|c| c.text.clone()).collect(),
         delivered: ranked_docs(corpus, &delivered).into_iter().map(|d| d.doc).collect(),
+        delivered_chunks: delivered.len(),
+        delivered_tokens: delivered.iter().map(|c| c.token_count).sum(),
         latency_ms,
     })
 }
@@ -383,9 +384,9 @@ mod tests {
         let product = fast_request("q", WORKSPACE, PROFILE);
         let delivered = delivered_request("q");
         assert!(delivered.target_workspaces.is_empty());
-        assert_eq!((delivered.top_k, delivered.candidate_pool_k, delivered.max_density_chars), (product.top_k, product.candidate_pool_k, product.max_density_chars));
+        assert_eq!((delivered.candidate_pool_k, delivered.token_budget), (product.candidate_pool_k, product.token_budget));
         let ranking = ranking_request("q");
-        assert_eq!((ranking.top_k, ranking.max_density_chars), (DEPTH, usize::MAX));
+        assert_eq!(ranking.token_budget, usize::MAX);
         assert_eq!(ranking.candidate_pool_k, product.candidate_pool_k);
         assert_eq!((ranking.rerank_depth, ranking.rerank_budget_ms), (product.rerank_depth, None));
     }

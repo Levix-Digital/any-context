@@ -62,7 +62,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 3, Duplicates and versions (audit P17). A language-independent fingerprint (MinHash/SimHash) groups near-duplicate documents into a version family at the document level. The current version is the one with the most recent document date (mtime as tiebreaker); previous ones stay indexed and marked. The user can split wrong groups and join undetected versions. Retrieval use belongs to the retrieval batch.
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 3, Duplicates and versions (audit P17). A language-independent fingerprint (MinHash/SimHash) groups near-duplicate documents into a version family at the document level. The current version is the one with the most recent document date (mtime as tiebreaker); previous ones stay indexed and marked. The user can split wrong groups and join undetected versions. Retrieval use belongs to the retrieval batch; from IMP-045 (ADR-0159): it also delivers the selection rule "current version only" (previous versions only in comparison questions), since the selection has no version data before it.
 
 ### FEAT-028: [ingestion] Parsers for legacy Office, ODF and RTF
 - **Priority**: medium
@@ -1249,13 +1249,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 2, Routing. Each Deep turn refines or decomposes the question from what was found, searches, and evaluates what is missing. Default maximum of 3 turns (up to 5 only through a domain pack), stopping early when evidence is enough, plus a token ceiling; the default is tuned by the evaluation set.
 
-### IMP-045: [retrieval] Selection by relevance bands and the token budget
-- **Priority**: medium
-- **Status**: open
-- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 7, Selection. Chunks of the relevant band enter, then the best of the maybe band, up to a context token budget set by AnyContext from the chat model and the mode (typically 3 to 5 chunks with parents in Fast). Near-identical chunks deduplicated, current version only (previous ones in comparisons), no hard per-file limit. Acceptance: the fixed top-k (10/20/40), per-file caps (2/3/5) and character ceilings (20/40/60 thousand) are removed.
-
 ### IMP-046: [retrieval] Nothing-found and weak-evidence gate by reranker bands
 - **Priority**: medium
 - **Status**: open
@@ -2189,3 +2182,11 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: imp_044_reranker_relevance_bands
 - **Closed**: 2026-10-30, PR #390
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 6, Reranking. Reranker scores map to relevant, maybe and irrelevant bands with per-model thresholds in the catalog, refined per workspace by the evaluation. Irrelevant chunks never go to the LLM. The bands feed the nothing-found gate, the Fast-to-Deep escalation and selection. Supersedes IMP-007.
+
+### IMP-045: [retrieval] Selection by relevance bands and the token budget
+- **Priority**: medium
+- **Status**: done
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: imp_045_band_selection
+- **Closed**: 2026-10-31, PR #391
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 7, Selection. Chunks of the relevant band enter, then the best of the maybe band, up to a context token budget set by AnyContext from the chat model and the mode (typically 3 to 5 chunks with parents in Fast). Near-identical chunks deduplicated, current version only (previous ones in comparisons), no hard per-file limit. Acceptance: the fixed top-k (10/20/40), per-file caps (2/3/5) and character ceilings (20/40/60 thousand) are removed.
