@@ -5,9 +5,9 @@ from: dev-cycle-protocol
 to: any-context
 date: 2026-11-01T20:38:42Z
 subject: "Request: command line contract to index and query a project's context map (DCP FEAT-027)"
-status: seen
+status: done
 reply_to: 
-deferred: "Outside the current R1 work (IMP-045/IMP-046). Waiting on the owner to decide where it goes in the backlog and roadmap."
+deferred: 
 ---
 
 # Request from the Dev Cycle Protocol: a command line contract to index and query a project's context map
