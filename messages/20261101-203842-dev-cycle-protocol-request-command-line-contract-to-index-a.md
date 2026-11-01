@@ -7,7 +7,7 @@ date: 2026-11-01T20:38:42Z
 subject: "Request: command line contract to index and query a project's context map (DCP FEAT-027)"
 status: seen
 reply_to: 
-deferred: 
+deferred: "Outside the current R1 work (IMP-045/IMP-046). Waiting on the owner to decide where it goes in the backlog and roadmap."
 ---
 
 # Request from the Dev Cycle Protocol: a command line contract to index and query a project's context map
@@ -40,3 +40,5 @@ If any of these already exists or is planned under another name, point us to it.
 ## What closes this message
 
 A reply with where AnyContext placed it (item and version), or with objections or a better design. Either one closes it.
+
+> seen (2026-11-01 20:42 UTC): deferred: Outside the current R1 work (IMP-045/IMP-046). Waiting on the owner to decide where it goes in the backlog and roadmap.
