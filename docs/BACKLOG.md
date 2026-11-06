@@ -1604,14 +1604,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/cli-and-release-v2.md, section 5. Review the 73 ADRs in docs/adr (all already in English, all `accepted` today) against the v2 design and mark those it replaces as superseded with a pointer to the v2 document (e.g. 0116 path healing, 0129 and 0130 reranking, 0077 TUI); the valid ones stay.
 
-### ADJ-008: [docs] Publish the license file
-- **Priority**: medium
-- **Epic**: EPIC-010
-- **Status**: open
-- **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
-- **Plan**: -
-- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 5. The repository has no LICENSE file and the README tells readers to contact Levix Digital. Publish the license or the proprietary terms once the owner chooses them. Supersedes ADJ-002.
-
 ## Epics
 
 ### EPIC-001: Ingestion: sources, formats, extraction and incremental sync
@@ -2465,3 +2457,12 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: imp_045_band_selection
 - **Closed**: 2026-10-31, PR #391
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 7, Selection. Chunks of the relevant band enter, then the best of the maybe band, up to a context token budget set by AnyContext from the chat model and the mode (typically 3 to 5 chunks with parents in Fast). Near-identical chunks deduplicated, current version only (previous ones in comparisons), no hard per-file limit. Acceptance: the fixed top-k (10/20/40), per-file caps (2/3/5) and character ceilings (20/40/60 thousand) are removed.
+
+### ADJ-008: [docs] Publish the license file
+- **Priority**: medium
+- **Epic**: EPIC-010
+- **Status**: done
+- **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
+- **Plan**: -
+- **Closed**: 2026-11-06, #393, #396
+- **Description**: Design: docs/architecture/cli-and-release-v2.md, section 5. The repository had no LICENSE file and the README told readers to contact Levix Digital. Decided 2026-11-06 by the owner (strategy and distribution document v2): AnyContext is proprietary under the shared Levix Digital Proprietary License with Customer Source Access, byte-identical to levix-admin-hub's LICENSE (sha256 ddb2b49f...a60407e2), every crate declares license = "LicenseRef-Levix-Proprietary", and the private repository runs Windows CI only on the release pull request into main and on manual runs (cross-project thread 20261106-174849 with levix-admin-hub, approved). The LICENSE reaches main with the next release. Supersedes ADJ-002.
