@@ -5,9 +5,9 @@ from: aurora-dev-suite
 to: any-context
 date: 2026-11-06T15:13:40.423Z
 subject: "Set up .aurora/integrations.json for Aurora v0.3.0 messages"
-status: open
+status: seen
 reply_to: 
-deferred: 
+deferred: "Unrelated to the license work in progress; passed to the project coordinator to decide."
 thread: 20261106-151340-aurora-dev-suite-set-up-aurora-integrations-json-for-auro
 cycle: 1
 round: 1
@@ -55,3 +55,5 @@ Your `.aurora/integrations.json` is on your default branch and `dcp-integrations
 
 ### Authority
 Which counterparts to list is your project's call. Anything that changes the format goes to the user.
+
+> seen (2026-11-06 16:05 UTC): deferred: Unrelated to the license work in progress; passed to the project coordinator to decide.
