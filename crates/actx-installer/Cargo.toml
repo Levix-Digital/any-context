@@ -4,6 +4,7 @@ version = "0.45.0"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "Native cross-platform installer, atomic updater, and launcher shim for AnyContext"
+license = "LicenseRef-Levix-Proprietary"
 
 [dependencies]
 ureq = { version = "2.10", features = ["json", "tls"] }

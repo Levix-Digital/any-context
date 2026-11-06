@@ -4,7 +4,7 @@ version = "0.45.0"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "Universal, lightweight, and modular Language Model (LLM & SLM) façade and streaming provider engine for Rust"
-license = "MIT OR Apache-2.0"
+license = "LicenseRef-Levix-Proprietary"
 
 [dependencies]
 tokio = { version = "1.40", features = ["rt", "sync", "macros", "time"] }

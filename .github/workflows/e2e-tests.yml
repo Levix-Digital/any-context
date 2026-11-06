@@ -5,9 +5,23 @@ on:
     branches:
       - dev
       - main
+    # Documentation-only changes skip the build. README.md, config/*.md and the benchmark
+    # corpus are compiled into the product or used by tests, so they are not ignored.
+    paths-ignore:
+      - "docs/**"
+      - "specs/**"
+      - ".specify/**"
+      - ".claude/**"
+      - "TECDOC.md"
   push:
     branches:
       - dev
+    paths-ignore:
+      - "docs/**"
+      - "specs/**"
+      - ".specify/**"
+      - ".claude/**"
+      - "TECDOC.md"
   workflow_dispatch:
 
 concurrency:
@@ -29,7 +43,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # Private repository: Windows minutes are billed at twice the Linux rate, so Windows
+        # runs only on the release pull request into main and on manual runs. Pull requests
+        # into dev and pushes to dev run Linux only. Release candidates are built on both
+        # systems by release.yml.
+        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.base_ref == 'main')) && '["ubuntu-latest", "windows-latest"]' || '["ubuntu-latest"]') }}
 
     steps:
       - name: Checkout Code

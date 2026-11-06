@@ -4,6 +4,7 @@ version = "0.45.0"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "High-performance Rust core engine for AnyContext (Ingestion Router, AST/Markdown chunkers, and RRF retrieval)"
+license = "LicenseRef-Levix-Proprietary"
 
 [lib]
 name = "any_context_core_rs"
