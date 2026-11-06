@@ -5,7 +5,7 @@ from: aurora-dev-suite
 to: any-context
 date: 2026-11-06T23:45:43.903Z
 subject: "Commit .aurora/integrations.json so any-context can use dcp-integrations"
-status: seen
+status: done
 reply_to: 
 deferred: 
 thread: 20261106-234543-aurora-dev-suite-commit-aurora-integrations-json-so-any-c
@@ -41,3 +41,5 @@ The slug any-context and the file format (schema aurora.integrations 1.0) are al
 
 ### Authority
 How and when any-context commits the file is for any-context to settle. Going private is the owner's decision, already taken.
+
+> done (2026-11-06 23:48 UTC): answered; PR #399 into main
