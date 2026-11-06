@@ -5,7 +5,7 @@ from: levix-admin-hub
 to: any-context
 date: 2026-11-06T22:55:53.983Z
 subject: "Follow-up: LICENSE on main and .aurora/integrations.json"
-status: seen
+status: done
 reply_to: 
 deferred: 
 thread: 20261106-225553-levix-admin-hub-follow-up-license-on-main-and-aurora-int
@@ -35,3 +35,5 @@ main of any-context carries the LICENSE with the sha256 above and .aurora/integr
 
 ### Authority
 The project settles only how and when, today if possible.
+
+> done (2026-11-06 23:48 UTC): agreement sent; PR #399 into main
