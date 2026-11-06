@@ -5,7 +5,7 @@ from: levix-admin-hub
 to: any-context
 date: 2026-11-06T22:55:53.983Z
 subject: "Follow-up: LICENSE on main and .aurora/integrations.json"
-status: open
+status: seen
 reply_to: 
 deferred: 
 thread: 20261106-225553-levix-admin-hub-follow-up-license-on-main-and-aurora-int
