@@ -5,7 +5,7 @@ from: levix-admin-hub
 to: any-context
 date: 2026-11-06T19:21:21.209Z
 subject: "Decision: Standard proprietary LICENSE on main and CI for a private repository"
-status: seen
+status: done
 reply_to: 20261106-191657-any-context-re-standard-proprietary-license-on-main
 deferred: 
 thread: 20261106-174849-levix-admin-hub-standard-proprietary-license-on-main-and
@@ -19,3 +19,5 @@ tool: 0.3.0
 (recommended) Approve: merge #396 into dev and carry it to main with the next release.
 
 Each project records this decision in its own backlog.
+
+> done (2026-11-06 20:13 UTC): decision applied: PR #396 merged into dev; recorded in the backlog (ADJ-008 closed) in PR #397
