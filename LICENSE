@@ -1,0 +1,60 @@
+Levix Digital Proprietary License with Customer Source Access
+
+Copyright (c) 2026 Levix Digital. All rights reserved.
+
+1. Proprietary software. This software, its source code, documentation and build
+   files (the "Software") are the property of Levix Digital and are protected by
+   copyright and trade secret law. No right is granted except as stated in this
+   license and in a written agreement between Levix Digital and the customer (the
+   "Agreement").
+
+2. Use. The Software may be used in object form only:
+   a. under an active Agreement and a valid license signed by Levix Digital, within
+      the limits stated there (instances, seats, devices, products and term); or
+   b. where Levix Digital publishes a free edition of the Software, without an
+      Agreement and within the limits of that edition, only by a natural person for
+      personal use, or for the work of a business run by that person alone, with no
+      employees or contractors using the Software. Any other use, including use by or
+      for an organization, requires an Agreement.
+
+3. Source access for audit. A customer with an active Agreement may request the
+   source code of the exact versions of the Software it runs. The source code is
+   delivered under the confidentiality terms of the Agreement or of a separate
+   non-disclosure agreement. Solely for security, compliance and quality audits, the
+   customer may:
+   a. read the source code and run static and dynamic analysis tools on it;
+   b. build it, following the build instructions published with each release, and
+      compare the result with the binaries delivered by Levix Digital;
+   c. share it with its own auditors, provided they are bound by confidentiality
+      obligations at least as protective as those of the Agreement.
+
+4. Restrictions. Unless Levix Digital agrees otherwise in writing, no one may:
+   a. copy, publish, distribute, sublicense, sell or otherwise make the Software or
+      its source code available to any third party, except as allowed in section 3c;
+   b. modify the Software for production use, or run in production binaries built
+      from the source code instead of the binaries delivered by Levix Digital;
+   c. use the Software or its source code to develop, offer or support a product or
+      service that competes with Levix Digital;
+   d. remove or alter any proprietary notice, or circumvent, disable or interfere
+      with license verification.
+
+5. Source escrow. Where the Agreement provides for it, a copy of the source code is
+   deposited with an independent escrow agent and released to the customer only
+   under the conditions stated in the Agreement.
+
+6. Third-party components. Components of third parties included in the Software
+   remain under their own licenses, which are listed with each release.
+
+7. Termination. The rights granted here end when the Agreement, if any, ends or when
+   any term of this license is breached. On termination, the customer, or the person
+   using a free edition, stops using the Software and destroys every copy of the
+   source code, except copies it is required by law to keep, which remain
+   confidential.
+
+8. No warranty. Except as expressly stated in the Agreement, the Software is
+   provided "as is", without warranty of any kind, and Levix Digital is not liable
+   for any damages arising from its use, to the extent permitted by law.
+
+9. Precedence. If this license and the Agreement conflict, the Agreement prevails.
+
+Contact: Levix Digital.
