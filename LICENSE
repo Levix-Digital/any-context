@@ -11,10 +11,11 @@ Copyright (c) 2026 Levix Digital. All rights reserved.
 2. Use. The Software may be used in object form only:
    a. under an active Agreement and a valid license signed by Levix Digital, within
       the limits stated there (instances, seats, devices, products and term); or
-   b. where Levix Digital publishes a free edition of the Software, by a natural
-      person for their own use, without an Agreement, within the limits of that
-      edition. An organization may not deploy, manage or make a free edition
-      available to other users; that use requires an Agreement.
+   b. where Levix Digital publishes a free edition of the Software, without an
+      Agreement and within the limits of that edition, only by a natural person for
+      personal use, or for the work of a business run by that person alone, with no
+      employees or contractors using the Software. Any other use, including use by or
+      for an organization, requires an Agreement.
 
 3. Source access for audit. A customer with an active Agreement may request the
    source code of the exact versions of the Software it runs. The source code is

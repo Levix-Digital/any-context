@@ -245,6 +245,6 @@ For anything else, run `actx --diagnostics` and look at the logs folder.
 
 ## License
 
-Proprietary software of Levix Digital. The free edition may be used by one person for their own use; use by an
-organization requires an agreement. Customers with an active agreement may receive the source code of the versions
+Proprietary software of Levix Digital. The free edition is for personal use or for a business run by one person
+alone; any other use, including use by an organization, requires an agreement. Customers with an active agreement may receive the source code of the versions
 they run, under confidentiality, for audit only. See [`LICENSE`](LICENSE).
