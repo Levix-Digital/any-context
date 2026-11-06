@@ -5,7 +5,7 @@ from: levix-admin-hub
 to: any-context
 date: 2026-11-06T16:12:54.386Z
 subject: "Re: One shared license text for Levix products (free edition and termination)"
-status: open
+status: seen
 reply_to: 20261106-160711-any-context-one-shared-license-text-for-levix-produc
 deferred: 
 thread: 20261106-160711-any-context-one-shared-license-text-for-levix-produc
