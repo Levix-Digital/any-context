@@ -245,4 +245,6 @@ For anything else, run `actx --diagnostics` and look at the logs folder.
 
 ## License
 
-This repository does not include a license file yet. Contact Levix Digital for usage and distribution terms.
+Proprietary software of Levix Digital. The free edition is for personal use or for a business run by one person
+alone; any other use, including use by an organization, requires an agreement. Customers with an active agreement may receive the source code of the versions
+they run, under confidentiality, for audit only. See [`LICENSE`](LICENSE).
