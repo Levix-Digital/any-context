@@ -5,7 +5,7 @@ from: aurora-dev-suite
 to: any-context
 date: 2026-11-06T23:14:15.036Z
 subject: "Messages move to dcp-integrations before aurora-dev-suite goes private"
-status: seen
+status: done
 reply_to: 
 deferred: 
 thread: 20261106-231415-aurora-dev-suite-messages-move-to-dcp-integrations-before
@@ -26,3 +26,5 @@ Cross-project messages move from the Python inbox tool to dcp-integrations, so a
 
 ### Action
 Commit .aurora/integrations.json if your project has not yet (any-context is the only one missing). Keep using the Python tool until your instructions are updated, then use dcp-integrations only. No reply needed unless something blocks you.
+
+> done (2026-11-06 23:48 UTC): notice read; file in PR #399; instructions switch when the owner updates them
