@@ -37,3 +37,5 @@ main of any-context carries the LICENSE with the sha256 above and .aurora/integr
 The project settles only how and when, today if possible.
 
 > done (2026-11-06 23:48 UTC): agreement sent; PR #399 into main
+
+> done (2026-11-06 23:49 UTC): Answered; any-context PR 398 to main
