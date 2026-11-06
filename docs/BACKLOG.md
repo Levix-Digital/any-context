@@ -1093,6 +1093,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 4, Search, and docs/architecture/desktop-ui-v2.md, workspace tree. The user can turn a source of the workspace off and back on, in the desktop UI and the CLI. An off source keeps its chunks, vectors and lexical index on disk but is left out of search and sync; turning it back on runs only the incremental diff. Same mechanism as the deactivated state of FEAT-169 and the source filter of FEAT-088, applied inside the retrievers (IMP-040), with no reindex. The off state is shown in the source tree and in the source report, and a question in a workspace with every source off answers that there is nothing to search without calling the LLM. Plan it together with FEAT-088. No pinning or reserved budget per source: selection follows relevance (ADR-0139, IMP-045).
 
+### FEAT-196: [integration] Versioned machine contract to index and query a repository workspace
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-11-01, 2026-11-01, cross-project request from dev-cycle-protocol (DCP FEAT-027)
+- **Plan**: -
+- **Description**: Requested by the Dev Cycle Protocol (DCP FEAT-027, EPIC-011) so its full-context steps can query AnyContext for the context of a change. A versioned command line contract in the spirit of the dcp and Gedo contracts: --json, a schema name and version in every reply, stable exit codes, and capabilities listed by a version command so callers can discover them and skip safely when one is missing. Inside it: (1) a workspace bound to a repository, created and synced without interaction, so an index can be built in CI or a short-lived cloud session (actx --sync --folder covers part of it); (2) retrieval without generation: a query that returns the ranked passages (source path, location in the file, score, text) and calls no language model; (3) source priority: mark a folder (the protocol's context map, one index per module) as preferred in ranking over the rest of the repository; (4) freshness: every reply says how current the index is relative to the repository, for example the last indexed commit. Related: FEAT-088 (LLM-free filters), FEAT-195 (source on/off).
+
 ## Improvements
 
 ### IMP-015: [ingestion] Single source model: a sources table replaces the three source tables
