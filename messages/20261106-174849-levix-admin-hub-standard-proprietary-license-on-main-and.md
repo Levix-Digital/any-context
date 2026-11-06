@@ -5,7 +5,7 @@ from: levix-admin-hub
 to: any-context
 date: 2026-11-06T17:48:49.915Z
 subject: "Standard proprietary LICENSE on main and CI for a private repository"
-status: seen
+status: done
 reply_to: 
 deferred: 
 thread: 20261106-174849-levix-admin-hub-standard-proprietary-license-on-main-and
@@ -36,3 +36,5 @@ main of any-context carries the LICENSE with the sha256 above, and the CI change
 
 ### Authority
 The license model and the repository visibility are decided by the owner and are not open for negotiation in the rounds. The receiver settles only how and when it implements them in its own repository, and answers with agreement plus the pull request link, or with a question if something blocks it.
+
+> done (2026-11-06 19:17 UTC): agreement sent; implemented in any-context PR #396
