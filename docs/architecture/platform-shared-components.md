@@ -14,7 +14,7 @@ Cross-cutting document: components built once and reused by the Levix products
 
 ## Components
 
-### 1. Admin Hub (separate product)
+### Section 1: Admin Hub (separate product)
 
 Control plane for **several products**: a company that has AnyContext and DocMapper
 installs a single Admin Hub (always hosted by the customer, zero-knowledge — see
@@ -29,7 +29,7 @@ installs a single Admin Hub (always hosted by the customer, zero-knowledge — s
 - **Contract:** documented API and WebSocket — any product talks to the Admin Hub through
   the protocol, regardless of language.
 
-### 2. Client-side identity
+### Section 2: Client-side identity
 
 Accounts, `root`/`sudo`, session, key hierarchy, vault, biometrics, enrollment and the
 governance engine (enforcement of signed policies) — practically all of
@@ -40,7 +40,7 @@ machine; users of different products **never mix**. What is common is the
 **administration**: the Admin Hub manages the accounts of every product with the same user
 management tools.
 
-### 3. Others
+### Section 3: Others
 
 - **Licensing** (DocMapper already has a license module).
 - **Verified catalog** of models and updates.

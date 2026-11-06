@@ -13,7 +13,7 @@ default (local ONNX models, per hardware profile) and nothing disappears silentl
 
 ---
 
-## 1. Harness² (Google Research)
+## Section 1: Harness² (Google Research)
 
 [Harness²](https://github.com/google-research/harness2) (Apache-2.0) **is not an ingestion
 framework**: it is a "recursive agent harnessing" framework — it optimizes the system
@@ -30,7 +30,7 @@ Three of its ideas transfer well to ingestion:
 
 ---
 
-## 2. Format coverage by audience
+## Section 2: Format coverage by audience
 
 The v2 design covers web, HTML, text, code, structured, tabular, PDF, Office, e-mail,
 e-book and image. Formats central to several audiences are missing:
@@ -49,7 +49,7 @@ Out of reach without proprietary software: native DWG, OneNote, DRM-protected fi
 
 ---
 
-## 3. Proposals
+## Section 3: Proposals
 
 ### Coverage
 
@@ -161,7 +161,7 @@ Out of reach without proprietary software: native DWG, OneNote, DRM-protected fi
 
 ---
 
-## 4. Suggested priority
+## Section 4: Suggested priority
 
 | priority | proposals | why |
 |---|---|---|
@@ -171,7 +171,7 @@ Out of reach without proprietary software: native DWG, OneNote, DRM-protected fi
 
 ---
 
-## 5. Decisions
+## Section 5: Decisions
 
 | proposal | decision | where it was recorded |
 |---|---|---|

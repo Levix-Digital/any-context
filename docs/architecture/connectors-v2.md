@@ -158,7 +158,7 @@ order is left to the roadmap.
 27. **In the corporate environment**, connectors are a **selection of features**, not an
     extra charge: the Enterprise license includes them and the Admin Hub policy turns each
     one on or off (decision 11).
-28. **Three plans** (decided 2026-10-22):
+28. **Three plans** (decided 2026-10-22; replaced by decision 34 on 2026-11-06):
 
     | Plan | Includes |
     |---|---|
@@ -169,7 +169,7 @@ order is left to the roadmap.
     Web and Audio and video stay connectors inside (decision 22: visible openings to the
     outside, governed by policy); they are simply part of the plan instead of separate
     purchases. No combinations of capabilities are sold as extra plans.
-29. **Workspaces over the Free limit after a downgrade**: the user chooses **once**, at the
+29. **Workspaces over the Free limit after a downgrade** (void since decision 34: Free has no workspace limit): the user chooses **once**, at the
     downgrade, which 3 stay active; there is no swapping afterwards, otherwise rotating
     would give the same access as Pro. The others are kept intact on disk, left out of
     search and sync, and can be deleted explicitly; they come back only when the plan
@@ -177,7 +177,7 @@ order is left to the roadmap.
 30. **No Notion connector.** Decided 2026-10-22. Drive connectors (Google Drive, OneDrive,
     Dropbox) add little over the local sync folders the base already indexes, so they are
     not part of the personal plans; they remain Enterprise candidates.
-31. **Web search in Pro has a fair-use ceiling, not a metered quota.** Each search and page
+31. **Web search has a fair-use ceiling, not a metered quota** (in Free since decision 34). Each search and page
     read costs Levix a little (Jina: about US$ 0.0005 per search on a paid key; the free key
     is non-commercial only), so the Pro plan carries a high daily ceiling that normal use
     never reaches and that only stops abuse. Reaching it pauses web search until the next
@@ -199,6 +199,22 @@ order is left to the roadmap.
     Verification). Decided 2026-10-23; the Google scope and app-password rules were checked
     only against secondary sources and must be confirmed in Google's documentation when the
     item is planned.
+
+34. **The free edition is complete for one person; there is no Pro plan.** Decided by the
+    owner on 2026-11-06, following the Levix strategy v2: nothing a person working alone
+    needs is behind payment. Free covers personal use and a business run by one person
+    alone (LICENSE, section 2b), with unlimited workspaces and every personal connector,
+    the Web and the Audio and video connectors included; web search keeps the fair-use
+    ceiling of decision 31. What is paid is what only makes sense in an organization:
+
+    | Plan | Includes |
+    |---|---|
+    | **Free** | Everything for one person: local and internal-network files, the Web and the Audio and video connectors, unlimited workspaces; no registration, no Admin Hub |
+    | **Enterprise** | Free + Admin Hub (shared workspaces, policies, SSO, auditing, shared index, Model Server) and the corporate connectors as a selection of features; annual license per seat, with a minimum |
+    | **Isolated** | Enterprise for networks without internet: annual license per installation with dedicated support and the Admin Hub update mirror |
+
+    A lapsed Enterprise or Isolated license still deactivates and never deletes
+    (decision 26).
 
 ## For the roadmap
 

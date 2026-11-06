@@ -10,6 +10,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-020: [ingestion] Single local file and single web page as sources
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -17,6 +18,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-021: [ingestion] Recursive website scope: host and path prefix, robots.txt, 3000-page ceiling
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -24,6 +26,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-022: [ingestion] Embedded headless Chromium, sandboxed and shipped in the installer
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -31,6 +34,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-023: [ingestion] Render-or-fetch calibration per site and per page
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -38,6 +42,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-024: [models] ONNX content-block classifier for web pages
 - **Priority**: medium
+- **Epic**: EPIC-005
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -45,6 +50,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-025: [ingestion] Incremental web re-sync with conditional requests and linked documents
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -52,6 +58,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-026: [ingestion] Exact duplicates stored once with occurrences
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -59,6 +66,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-027: [ingestion] Version families by text fingerprint, with user split and join
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -66,6 +74,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-028: [ingestion] Parsers for legacy Office, ODF and RTF
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -73,6 +82,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-029: [ingestion] Parsers for e-mail (.eml, .msg) and e-book (.epub)
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -80,6 +90,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-030: [ingestion] Per-page PDF state: digital, scanned or broken text
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -87,6 +98,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-031: [ingestion] Source report: unindexed files and discarded chunks with the reason
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -94,6 +106,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-032: [ingestion] Archives opened recursively as child documents
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -101,6 +114,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-033: [ingestion] Mailboxes as containers: MBOX and PST/OST
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -108,6 +122,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-034: [ingestion] RAR archives, read-only
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -115,6 +130,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-035: [ingestion] Unlock protected files with passwords from the personal vault
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -122,6 +138,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-036: [ingestion] Hierarchical parent and child chunks per content type
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -129,6 +146,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-037: [models] Multilingual ONNX OCR replacing Tesseract
 - **Priority**: medium
+- **Epic**: EPIC-005
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -136,6 +154,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-038: [ingestion] Full DOCX: headings, tracked changes, comments, headers and notes
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -143,6 +162,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-039: [ingestion] Full PPTX and XLSX: notes, values and formulas, merges, hidden sheets
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -150,6 +170,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-040: [ingestion] Full PDF: outline, annotations, form fields, attachments, signatures
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -157,6 +178,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-041: [ingestion] Calendar, contacts and MHTML parsers
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -164,6 +186,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-042: [ingestion] Visio, XPS and Apple iWork parsers
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -171,6 +194,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-043: [ingestion] Academic formats: LaTeX, bibliographies, notebooks, Parquet, Arrow
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -178,6 +202,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-044: [ingestion] Engineering formats: DXF, IFC, STEP/IGES headers; DWG refused
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -185,6 +210,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-045: [ingestion] GIS formats: GeoJSON, KML/KMZ, Shapefile, GeoPackage
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -192,6 +218,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-046: [ingestion] Health formats: DICOM, HL7 v2, FHIR, CDA
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -199,13 +226,15 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-047: [ingestion] Local audio and video transcription, existing captions first
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Audio and video (audit P2). Audio MP3, WAV, M4A, OGG, FLAC, Opus and the audio track of MP4, MKV, MOV, WebM read with Symphonia; local multilingual transcription with a Whisper-family ONNX model per profile, language detection and VAD. Embedded captions or a sibling .srt/.vtt are used directly. Chunks follow sentences and turns, locators are start and end in seconds, parents are blocks of a few minutes or chapters. It is the Audio and video connector of the Pro plan (connectors-v2.md, decisions 22 and 28).
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Audio and video (audit P2). Audio MP3, WAV, M4A, OGG, FLAC, Opus and the audio track of MP4, MKV, MOV, WebM read with Symphonia; local multilingual transcription with a Whisper-family ONNX model per profile, language detection and VAD. Embedded captions or a sibling .srt/.vtt are used directly. Chunks follow sentences and turns, locators are start and end in seconds, parents are blocks of a few minutes or chapters. It is the Audio and video connector, part of Free (connectors-v2.md, decisions 22 and 34).
 
 ### FEAT-048: [ingestion] Speaker identification in transcripts
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -213,6 +242,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-049: [ingestion] Video key frames and slides through FFmpeg, vision and OCR
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -220,6 +250,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-050: [ingestion] Long jobs: estimate, confirmation and progressive indexing
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -227,6 +258,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-051: [models] Benchmark of scanned-page extraction and vision models per profile
 - **Priority**: medium
+- **Epic**: EPIC-005
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -234,6 +266,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-052: [ingestion] Scanned-page extraction per profile
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -241,6 +274,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-053: [ingestion] Known-layout forms extracted by LSIE as field records and tables
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -248,6 +282,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-054: [ingestion] Automatic layout mapping (phase 0) per profile with a local anomaly gate
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -255,6 +290,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-055: [ingestion] Layout maps shared with DocMapper
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -262,6 +298,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-056: [ingestion] Image descriptions by the profile's local vision model
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -269,6 +306,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-057: [ingestion] Precise locators per content type
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -276,6 +314,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-058: [ingestion] Document metadata: language, document date, type, title, authors
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -283,6 +322,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-059: [ingestion] Zero-shot entity extraction with types per workspace
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -290,6 +330,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-060: [ingestion] Personal and sensitive data tagging
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -297,6 +338,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-061: [ingestion] Hierarchical summaries of documents and folders
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -304,6 +346,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-062: [ingestion] Late chunking with a long-context local embedding model
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -311,6 +354,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-063: [ingestion] Contextual retrieval sentences by the profile's local LLM
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -318,6 +362,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-064: [ingestion] Base entity and document graph without an LLM
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -325,6 +370,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-065: [ingestion] Typed relations by the local LLM with cited evidence
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -332,6 +378,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-066: [ingestion] Page-image embeddings for visually rich pages
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -339,6 +386,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-068: [storage] Learned sparse vectors in the lexical index
 - **Priority**: medium
+- **Epic**: EPIC-006
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -346,6 +394,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-069: [storage] Encrypted storage layer for LanceDB and Tantivy with the workspace data key
 - **Priority**: medium
+- **Epic**: EPIC-006
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -353,6 +402,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-070: [storage] Approximate vector index from 100 thousand chunks
 - **Priority**: medium
+- **Epic**: EPIC-006
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -360,6 +410,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-071: [storage] Compact vectors only when needed and without measurable loss
 - **Priority**: medium
+- **Epic**: EPIC-006
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -367,6 +418,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-072: [ingestion] Deterministic extraction quality signals per file
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -374,6 +426,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-073: [ingestion] Findability probing with synthetic questions and the evaluation set
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -381,6 +434,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-074: [ingestion] Automatic reprocessing with alternative strategies and strategy memory
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -388,6 +442,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-075: [ingestion] Domain pack format, distribution and selection per workspace
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -395,6 +450,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-076: [ingestion] Content of the 11 launch domain packs
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -402,6 +458,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-077: [ingestion] Automatic sync of the chosen sources while AnyContext is open
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -409,6 +466,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-078: [ingestion] Optional background sync service
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -416,6 +474,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-079: [ingestion] Machine resource governor
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -423,6 +482,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-080: [governance] Per-source access control with permission scopes
 - **Priority**: medium
+- **Epic**: EPIC-008
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -430,6 +490,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-081: [retrieval] Follow-up rewriting for search only
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -437,6 +498,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-082: [retrieval] Help and status as agent tools
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -444,6 +506,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-083: [ui] Drag a file into the chat to add it to the workspace as a single source
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -451,6 +514,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-084: [retrieval] Question queue per workspace chat
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -458,6 +522,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-085: [retrieval] Stop and edit a running question
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -465,6 +530,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-086: [ui] Conversation branches
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -472,6 +538,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-087: [retrieval] Question planner: search text, filters and question type
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -479,6 +546,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-088: [retrieval] LLM-free filters: @source, multilingual dates and the entity index
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -486,6 +554,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-089: [retrieval] Enumerative questions answered exhaustively, with the count checked
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -493,6 +562,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-090: [retrieval] Version-aware search: current version by default, family for change questions
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -500,6 +570,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-091: [retrieval] Entity and metadata filters and facets
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -507,6 +578,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-092: [retrieval] Table and form questions by read-only SQL
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -514,6 +586,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-093: [retrieval] Overview questions answered from document and folder summaries
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -521,6 +594,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-094: [retrieval] Search stratified by source with dynamic parallelism
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -528,6 +602,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-095: [retrieval] Two-stage search in large workspaces
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -535,6 +610,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-096: [retrieval] Page-image and sparse-vector lists in search
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -542,6 +618,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-097: [retrieval] Entity graph as a search list and a relations tool
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -549,6 +626,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-098: [retrieval] Small-to-big: selected chunks expanded to their parent
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -556,6 +634,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-099: [retrieval] Deep coverage: later turns exclude documents already found
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -563,6 +642,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-100: [retrieval] Reversible pseudonymization for external LLM endpoints
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -570,6 +650,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-101: [retrieval] Checked citations linked to their locators
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -577,6 +658,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-102: [retrieval] Citation support checked by the local reranker
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -584,6 +666,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-103: [retrieval] Answer receipt: citations with file version, mode, tools and tokens
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -591,6 +674,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-104: [retrieval] Answer feedback that stays on the machine
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -598,6 +682,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-105: [retrieval] Self-tuning loop per workspace
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -605,6 +690,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-106: [retrieval] Regression evaluation with automatic revert
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -612,6 +698,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-107: [retrieval] Conversation retention
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -619,6 +706,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-108: [retrieval] Whole-document questions with @file
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -626,6 +714,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-109: [retrieval] Source tools: list sources, browse folders and read files
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -633,6 +722,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-110: [storage] AnyContext Server exposing the knowledge base port (mode 3)
 - **Priority**: medium
+- **Epic**: EPIC-006
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -640,6 +730,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-111: [models] Native vendor adapters: OpenAI, Azure OpenAI, Anthropic, Gemini API, Vertex AI
 - **Priority**: medium
+- **Epic**: EPIC-005
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -647,6 +738,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-112: [models] Generic OpenAI-compatible adapter, including /rerank and /audio/transcriptions
 - **Priority**: medium
+- **Epic**: EPIC-005
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -654,6 +746,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-113: [models] AnyContext Model Server for roles without a standard (mode 2)
 - **Priority**: medium
+- **Epic**: EPIC-005
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -661,6 +754,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-114: [models] Adapters for cloud services of the ONNX roles
 - **Priority**: medium
+- **Epic**: EPIC-005
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -668,6 +762,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-115: [models] Local LLM per profile via ONNX
 - **Priority**: medium
+- **Epic**: EPIC-005
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -675,6 +770,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-116: [models] GPU execution providers for local ONNX roles
 - **Priority**: medium
+- **Epic**: EPIC-005
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -682,6 +778,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-117: [governance] Endpoint trust levels: local, corporate, external
 - **Priority**: medium
+- **Epic**: EPIC-008
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -689,6 +786,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-118: [governance] Confidential workspace ceiling
 - **Priority**: medium
+- **Epic**: EPIC-008
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -696,6 +794,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-119: [models] Embedding target identity with a fingerprint test
 - **Priority**: medium
+- **Epic**: EPIC-005
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -703,6 +802,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-125: [identity] Sealed inbox: sync with the app closed using the public key
 - **Priority**: medium
+- **Epic**: EPIC-007
 - **Status**: open
 - **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
 - **Plan**: -
@@ -710,6 +810,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-131: [identity] Workspace key rotation when a member leaves
 - **Priority**: medium
+- **Epic**: EPIC-007
 - **Status**: open
 - **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
 - **Plan**: -
@@ -717,6 +818,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-133: [identity] Workspace roles (owner, editor, reader) and a private chat per user
 - **Priority**: medium
+- **Epic**: EPIC-007
 - **Status**: open
 - **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
 - **Plan**: -
@@ -724,6 +826,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-134: [identity] Workspace definition export and import (.actx-workspace)
 - **Priority**: medium
+- **Epic**: EPIC-007
 - **Status**: open
 - **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
 - **Plan**: -
@@ -731,6 +834,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-135: [identity] Sharing a workspace between accounts on the same machine
 - **Priority**: medium
+- **Epic**: EPIC-007
 - **Status**: open
 - **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
 - **Plan**: -
@@ -738,6 +842,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-136: [identity] Enterprise sharing: groups, organization workspaces, curators
 - **Priority**: medium
+- **Epic**: EPIC-007
 - **Status**: open
 - **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
 - **Plan**: -
@@ -745,6 +850,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-142: [governance] Source telemetry level set by the policy
 - **Priority**: medium
+- **Epic**: EPIC-008
 - **Status**: open
 - **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
 - **Plan**: -
@@ -752,6 +858,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-143: [release] Updates, models, packs and Chromium from the Admin Hub internal mirror
 - **Priority**: medium
+- **Epic**: EPIC-009
 - **Status**: open
 - **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
 - **Plan**: -
@@ -759,6 +866,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-146: [identity] Minimal user profile: role and answer style as a user preference
 - **Priority**: medium
+- **Epic**: EPIC-007
 - **Status**: open
 - **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
 - **Plan**: -
@@ -766,6 +874,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-147: [retrieval] Explicit user memories
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
 - **Plan**: -
@@ -773,6 +882,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-148: [retrieval] AnyContext MCP server
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
 - **Plan**: -
@@ -780,6 +890,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-149: [connectors] actx-connectors crate with the single connector contract
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
@@ -787,6 +898,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-150: [connectors] Shared HTTP client with corporate proxy and company certificates
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
@@ -794,6 +906,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-151: [connectors] OAuth 2.0 with PKCE through the system browser, tokens in the personal vault
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
@@ -801,6 +914,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-152: [connectors] Sync through the origin's change feed
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
@@ -808,6 +922,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-153: [connectors] Explicit target selection by browsing the origin's tree
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
@@ -815,6 +930,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-154: [connectors] Native cloud formats and wiki pages converted for the existing parsers
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
@@ -822,6 +938,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-155: [connectors] Typed connector metadata, with live metadata outside the embedded text
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
@@ -829,6 +946,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-156: [connectors] Source states: deleted at origin, disconnected, item access revoked
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
@@ -836,6 +954,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-157: [connectors] High-volume noisy sources indexed by relevance with a ceiling
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
@@ -843,6 +962,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-158: [connectors] Extraction maps signed by Levix and reviewed by a person
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
@@ -850,6 +970,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-159: [governance] Connector policy: allowed connectors, account domains, volume ceiling
 - **Priority**: medium
+- **Epic**: EPIC-008
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
@@ -857,6 +978,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-160: [connectors] Product model: base, source connectors and capability connectors
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
@@ -864,6 +986,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-161: [connectors] Web search connector through an allowed API
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
@@ -871,6 +994,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-162: [connectors] YouTube connector through the official Data API
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
@@ -878,6 +1002,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-163: [connectors] Obsidian connector: wikilinks, frontmatter, embedded notes, aliases, canvas
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
@@ -885,6 +1010,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-164: [connectors] Google Drive connector through the official API (Enterprise)
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
@@ -892,6 +1018,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-165: [connectors] OneDrive and SharePoint connector through Microsoft Graph (Enterprise)
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
@@ -899,34 +1026,39 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-166: [connectors] Dropbox connector (Enterprise)
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
 - **Description**: Design: docs/architecture/connectors-v2.md, decisions 6 and 30. Dropbox through its official API with cursor-based sync. Enterprise candidate: the local sync folder already covers personal use.
 
-### FEAT-168: [governance] Free and Pro plan limits
+### FEAT-168: [governance] Free and Enterprise plan scope
 - **Priority**: medium
+- **Epic**: EPIC-008
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/connectors-v2.md, decision 28. Free: local and internal-network files only, up to 3 workspaces. Pro: Free plus the Web and the Audio and video connectors built in, unlimited workspaces. No per-connector sales and no capability combinations sold as extra plans.
+- **Description**: Design: docs/architecture/connectors-v2.md, decision 34 (replaces 28). Free is complete for one person (personal use or a one-person business): local and internal-network files, the Web and the Audio and video connectors, unlimited workspaces, no registration. Enterprise adds the Admin Hub and the corporate connectors; Isolated is Enterprise without internet. No per-connector sales and no capability combinations sold as extra plans.
 
-### FEAT-169: [governance] Downgrade and lapsed plan deactivate, never delete
+### FEAT-169: [governance] Lapsed plan deactivates, never deletes
 - **Priority**: medium
+- **Epic**: EPIC-008
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/connectors-v2.md, decisions 26 and 29. Indexes the plan no longer covers stay on disk, out of search and sync, and can be deleted explicitly to free disk. Over the Free limit the user chooses once which 3 workspaces stay active, with no swapping afterwards. When the plan returns, the sources come back and only the incremental diff is reprocessed.
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 26 and 34. When an Enterprise or Isolated license lapses, the indexes it no longer covers stay on disk, out of search and sync, and can be deleted explicitly to free disk. When the license returns, the sources come back and only the incremental diff is reprocessed. Free has no workspace limit, so the old Free downgrade choice (decision 29) is void.
 
-### FEAT-170: [connectors] Web search fair-use daily ceiling in Pro
+### FEAT-170: [connectors] Web search fair-use daily ceiling
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/connectors-v2.md, decision 31. Pro carries a high daily ceiling of web searches and page reads that normal use never reaches; reaching it pauses web search until the next day with a clear message while local search keeps working. The exact value is open and set from real usage data.
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 31 and 34. Web search, part of Free since decision 34, carries a high daily ceiling of web searches and page reads that normal use never reaches; reaching it pauses web search until the next day with a clear message while local search keeps working. The exact value is open and set from real usage data.
 
 ### FEAT-171: [connectors] Generic IMAP e-mail connector (Enterprise)
 - **Priority**: medium
+- **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
@@ -934,6 +1066,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-172: [ui] Tauri 2 desktop app shell: three columns and the top bar
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
 - **Plan**: -
@@ -941,6 +1074,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-173: [ui] Design system tokens
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
 - **Plan**: -
@@ -948,6 +1082,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-174: [ui] Context Explorer: workspace tree with sources and their status
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
 - **Plan**: -
@@ -955,6 +1090,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-175: [ui] Canvas Hub tabs: one chat per workspace, one reader per open source
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
 - **Plan**: -
@@ -962,6 +1098,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-176: [ui] Chat tab: streaming, clickable citations, composer with quick options
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
 - **Plan**: -
@@ -969,6 +1106,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-177: [ui] Reader tab opening the original at the cited locator
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
 - **Plan**: -
@@ -976,6 +1114,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-178: [ui] Browse folders, files and sites without leaving AnyContext
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
 - **Plan**: -
@@ -983,6 +1122,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-179: [ui] Workspace Inspector with only what belongs to the user
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
 - **Plan**: -
@@ -990,6 +1130,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-180: [ui] Quick search (Cmd/Ctrl+K)
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
 - **Plan**: -
@@ -997,6 +1138,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-181: [ui] Token usage and context window fill in the chat tab
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
 - **Plan**: -
@@ -1004,6 +1146,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-182: [ui] Layout map review and correction screen
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
 - **Plan**: -
@@ -1011,6 +1154,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-183: [ui] Entity view in the inspector, with merge and split
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
 - **Plan**: -
@@ -1018,6 +1162,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-184: [ui] Source report view
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
 - **Plan**: -
@@ -1025,6 +1170,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-185: [ui] System help panel
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 7 of the v2 backlog rebuild
 - **Plan**: -
@@ -1032,6 +1178,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-186: [cli] Headless CLI over the core ports, with sign-in per terminal session
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
 - **Plan**: -
@@ -1039,6 +1186,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-187: [cli] actx sudo profile to install or switch the hardware profile
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
 - **Plan**: -
@@ -1046,6 +1194,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-188: [release] Desktop installers for Windows, Linux and macOS with ONNX Runtime, Chromium and FFmpeg
 - **Priority**: medium
+- **Epic**: EPIC-009
 - **Status**: open
 - **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
 - **Plan**: -
@@ -1053,6 +1202,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-189: [release] macOS build (unsigned until there is revenue)
 - **Priority**: medium
+- **Epic**: EPIC-009
 - **Status**: open
 - **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
 - **Plan**: -
@@ -1060,6 +1210,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-190: [release] Code signing: Windows with Azure Artifact Signing, Linux with GPG
 - **Priority**: medium
+- **Epic**: EPIC-009
 - **Status**: open
 - **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
 - **Plan**: -
@@ -1067,6 +1218,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-192: [release] Local diagnostic bundle, /feedback and local crash reports, sent only with confirmation
 - **Priority**: medium
+- **Epic**: EPIC-009
 - **Status**: open
 - **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
 - **Plan**: -
@@ -1074,6 +1226,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-193: [identity] Adopt the platform identity, policy and license crates
 - **Priority**: medium
+- **Epic**: EPIC-007
 - **Status**: open
 - **Found**: 2026-10-23, batch 9 of the v2 backlog rebuild
 - **Plan**: -
@@ -1081,6 +1234,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-194: [release] macOS Developer ID signing and notarization
 - **Priority**: medium
+- **Epic**: EPIC-009
 - **Status**: open
 - **Found**: 2026-10-23, roadmap skeleton, 2026-10-23
 - **Plan**: -
@@ -1088,6 +1242,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-195: [retrieval] Turn a source off and on without losing its index
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-25, review of improvement suggestions (NotebookLM-style source checkboxes)
 - **Plan**: -
@@ -1095,6 +1250,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### FEAT-196: [integration] Versioned machine contract to index and query a repository workspace
 - **Priority**: medium
+- **Epic**: EPIC-011
 - **Status**: open
 - **Found**: 2026-11-01, 2026-11-01, cross-project request from dev-cycle-protocol (DCP FEAT-027)
 - **Plan**: -
@@ -1104,6 +1260,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-015: [ingestion] Single source model: a sources table replaces the three source tables
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -1111,6 +1268,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-016: [ingestion] Include and exclude filters in settings.db with .gitignore syntax
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -1118,6 +1276,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-017: [ingestion] System help as a built-in source with a fixed index per version
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -1125,6 +1284,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-018: [ingestion] Read each local file once per sync
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -1132,6 +1292,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-019: [ingestion] Deterministic HTML to Markdown with a Readability fallback; Jina Reader removed
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -1139,6 +1300,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-020: [ingestion] Content-hash change detection and hash-based rename and move
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -1146,6 +1308,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-021: [ingestion] Per-chunk diff keyed by the hash of the embedded text
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -1153,6 +1316,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-022: [ingestion] Content classification by binary signature and text encoding detection
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -1160,6 +1324,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-023: [ingestion] Chunk size in tokens, overlap only in running text
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -1167,6 +1332,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-024: [ingestion] Table chunks repeat the header and use records for wide tables
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -1174,6 +1340,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-025: [ingestion] Quality gate keeps only safe, language-independent filters
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -1181,6 +1348,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-026: [ingestion] Contextual header (title and section path) replaces the envelope
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -1188,6 +1356,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-030: [ingestion] Embedding batches sized by tokens and API limits, controlled parallelism
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -1195,6 +1364,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-031: [storage] Tantivy lexical index per workspace without chunk text
 - **Priority**: medium
+- **Epic**: EPIC-006
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -1202,6 +1372,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-032: [ingestion] Multilingual lexical tokenization without per-language tables
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -1209,6 +1380,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-033: [storage] One LanceDB table per workspace and embedding target at the model's dimension
 - **Priority**: medium
+- **Epic**: EPIC-006
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -1216,6 +1388,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-034: [storage] Automatic compaction and schema migrations on open
 - **Priority**: medium
+- **Epic**: EPIC-006
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
@@ -1223,6 +1396,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-035: [retrieval] History by token budget with a background summary of older turns
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -1230,6 +1404,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-036: [storage] Chat history stored as an encrypted tree of messages
 - **Priority**: medium
+- **Epic**: EPIC-006
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -1237,6 +1412,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-037: [retrieval] Two modes, Fast and Deep, with tools in both; ReAct mode removed
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -1244,6 +1420,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-038: [retrieval] Automatic mode escalates from Fast to Deep on weak evidence
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -1251,6 +1428,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-039: [retrieval] Deep turns refine, search and evaluate, with turn and token ceilings
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -1258,6 +1436,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-046: [retrieval] Nothing-found and weak-evidence gate by reranker bands
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -1265,6 +1444,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-047: [retrieval] Context grouped by file, with ingestion locators, dates and versions
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -1272,6 +1452,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-048: [retrieval] Prompt in layers with the workspace prompt, ordered for caching
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -1279,6 +1460,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-049: [retrieval] Context token budget computed from the model window
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -1286,6 +1468,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-050: [retrieval] Always stream answers with visible progress
 - **Priority**: medium
+- **Epic**: EPIC-002
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
@@ -1293,6 +1476,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-051: [storage] Knowledge base port per workspace hiding the three stores
 - **Priority**: medium
+- **Epic**: EPIC-006
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -1300,6 +1484,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-052: [storage] Write journal applied idempotently across the three stores
 - **Priority**: medium
+- **Epic**: EPIC-006
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -1307,6 +1492,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-053: [storage] Split settings.db into user-local and workspace databases
 - **Priority**: medium
+- **Epic**: EPIC-006
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -1314,6 +1500,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-054: [models] Model port with explicit roles and per-role bindings
 - **Priority**: medium
+- **Epic**: EPIC-005
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -1321,6 +1508,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-055: [models] Hardware kits as sets of per-role bindings
 - **Priority**: medium
+- **Epic**: EPIC-005
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -1328,6 +1516,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-056: [governance] Admin Hub model policy checked at binding resolution
 - **Priority**: medium
+- **Epic**: EPIC-008
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -1335,6 +1524,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-057: [models] Rules for an unavailable remote model
 - **Priority**: medium
+- **Epic**: EPIC-005
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -1342,6 +1532,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-058: [models] Single verified model catalog for core and installer
 - **Priority**: medium
+- **Epic**: EPIC-005
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -1349,6 +1540,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-059: [ingestion] Persistent prioritized job queue per workspace
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -1356,6 +1548,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-060: [ingestion] Single writer per workspace through a lease
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -1363,6 +1556,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-061: [ingestion] Worker progress through events; cancel and pause as queue commands
 - **Priority**: medium
+- **Epic**: EPIC-001
 - **Status**: open
 - **Found**: 2026-10-23, batch 4 of the v2 backlog rebuild
 - **Plan**: -
@@ -1370,6 +1564,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-062: [identity] Migration from the machine-id key on the first sign-in
 - **Priority**: medium
+- **Epic**: EPIC-007
 - **Status**: open
 - **Found**: 2026-10-23, batch 5 of the v2 backlog rebuild
 - **Plan**: -
@@ -1377,6 +1572,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-063: [release] Release build profile: LTO, private debug symbols, stripped binaries, unwind
 - **Priority**: medium
+- **Epic**: EPIC-009
 - **Status**: open
 - **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
 - **Plan**: -
@@ -1384,6 +1580,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### IMP-064: [release] Updater behind a port; the core stops depending on actx_installer
 - **Priority**: medium
+- **Epic**: EPIC-009
 - **Status**: open
 - **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
 - **Plan**: -
@@ -1393,6 +1590,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### ADJ-006: [cli] Retire the TUI when the desktop app reaches parity
 - **Priority**: medium
+- **Epic**: EPIC-004
 - **Status**: open
 - **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
 - **Plan**: -
@@ -1400,6 +1598,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### ADJ-007: [docs] Mark the ADRs the v2 design replaces as superseded
 - **Priority**: medium
+- **Epic**: EPIC-010
 - **Status**: open
 - **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
 - **Plan**: -
@@ -1407,10 +1606,79 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 
 ### ADJ-008: [docs] Publish the license file
 - **Priority**: medium
+- **Epic**: EPIC-010
 - **Status**: open
 - **Found**: 2026-10-23, batch 8 of the v2 backlog rebuild
 - **Plan**: -
 - **Description**: Design: docs/architecture/cli-and-release-v2.md, section 5. The repository has no LICENSE file and the README tells readers to contact Levix Digital. Publish the license or the proprietary terms once the owner chooses them. Supersedes ADJ-002.
+
+## Epics
+
+### EPIC-001: Ingestion: sources, formats, extraction and incremental sync
+- **Priority**: high
+- **Status**: open
+- **Found**: 2026-11-06, product baseline 2026-11-06
+- **Description**: Everything that turns a source into indexed chunks: folders, shares, sites, formats, OCR and forms, chunking, embedding and the incremental diff. Design: docs/architecture/ingestion-pipeline-v2.md.
+
+### EPIC-002: Retrieval and answers: search, ranking, selection and citations
+- **Priority**: high
+- **Status**: open
+- **Found**: 2026-11-06, product baseline 2026-11-06
+- **Description**: Hybrid search, re-ranking, relevance bands, selection, the nothing-found gate, Fast and Deep, generation with checked citations. Design: docs/architecture/retrieval-pipeline-v2.md.
+
+### EPIC-003: Connectors: Web, Audio and video, and corporate sources
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-11-06, product baseline 2026-11-06
+- **Description**: The Web and Audio and video connectors (in Free) and the corporate connectors (drives, SharePoint, IMAP and others, in Enterprise), official APIs only. Design: docs/architecture/connectors-v2.md.
+
+### EPIC-004: Desktop and terminal interfaces
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-11-06, product baseline 2026-11-06
+- **Description**: The Tauri desktop app, the CLI and the terminal UI. Design: docs/architecture/desktop-ui-v2.md and cli-and-release-v2.md.
+
+### EPIC-005: Models: local models by role, providers and the Model Server
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-11-06, product baseline 2026-11-06
+- **Description**: Model port by role, hardware kits, local embedding and re-ranking, cloud providers, the Model Server. Design: docs/architecture/deployment-architecture-v2.md.
+
+### EPIC-006: Storage and workspaces
+- **Priority**: high
+- **Status**: open
+- **Found**: 2026-11-06, product baseline 2026-11-06
+- **Description**: Knowledge base port, settings.db split, LanceDB and Tantivy per workspace, job queue, chat history. Design: docs/architecture/deployment-architecture-v2.md and storage.md.
+
+### EPIC-007: Identity, security and plans
+- **Priority**: high
+- **Status**: open
+- **Found**: 2026-11-06, product baseline 2026-11-06
+- **Description**: Personal accounts, key hierarchy and vault, encrypted index, plan license verified offline, the Free and Enterprise plan scope, signed downloads. Design: docs/architecture/identity-and-governance-v2.md.
+
+### EPIC-008: Enterprise governance and the shared index
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-11-06, product baseline 2026-11-06
+- **Description**: Admin Hub integration, policies, curators, SSO, auditing, AnyContext Server and per-source access control. Design: docs/architecture/identity-and-governance-v2.md.
+
+### EPIC-009: Delivery and release
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-11-06, product baseline 2026-11-06
+- **Description**: Installers, updates, signing, release candidates and housekeeping. Design: docs/architecture/cli-and-release-v2.md.
+
+### EPIC-010: Documentation
+- **Priority**: low
+- **Status**: open
+- **Found**: 2026-11-06, product baseline 2026-11-06
+- **Description**: User and technical documentation of the product.
+
+### EPIC-011: Integrations: MCP server and machine contracts
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-11-06, product baseline 2026-11-06
+- **Description**: The MCP server and the machine contracts other tools use to index and query workspaces.
 
 ## Closed
 

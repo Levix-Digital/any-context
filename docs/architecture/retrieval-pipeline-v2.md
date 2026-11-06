@@ -100,7 +100,7 @@ path and add the steps the code already has and the items inherited from ingesti
 9. Generation and citations
 10. History and evaluation
 
-### 1. Question input
+### Step 1: Question input
 
 Today the question is searched as typed (the history goes to the LLM, not to the search —
 IMP-009); the history is a 30-turn window; AnyContext's documentation is mixed into every
@@ -150,7 +150,7 @@ search; status questions are detected by fixed PT/EN keywords ("what is the stat
   `parent_id`, the chat with the active branch), even if the branches UI arrives in a later
   release — it avoids migrating existing chats.
 
-### 2. Routing
+### Step 2: Routing
 
 Today there are three modes (Fast, ReAct, Deep Search); in automatic mode, a classifier
 based on fixed PT/EN keywords and the question length decides; tools exist only in ReAct.
@@ -174,7 +174,7 @@ based on fixed PT/EN keywords and the question length decides; tools exist only 
   - The default is tuned with data: the evaluation set measures the gain of each turn; if
     the 3rd brings no gain, the default drops to 2.
 
-### 3. Question understanding
+### Step 3: Question understanding
 
 Today file names (regex with fixed extensions) enter with a fixed score of 1.0 and dates
 (regex with English-only months) become filters on path fragments with a fixed score of
@@ -221,7 +221,7 @@ returns a structured search:
   LLM-free alternative, with fewer features: `@source`, dates by a multilingual parser and
   entities through the entity index.
 
-### 4. Search
+### Step 4: Search
 
 Today: exhaustive dense search in the current workspace and in `Global`, BM25 with the
 question "expanded" by dates, 50/100/150 candidates per list; the only real filter is the
@@ -257,7 +257,7 @@ table query.
 8. **Future retrievers enter as extra lists** (visual page search, sparse vectors — audit
    P10 and P19), without changing the rest of the pipeline.
 
-### 5. Fusion
+### Step 5: Fusion
 
 Today: RRF (k = 60) of the dense and lexical lists with equal weights; the dense list
 comes with the file and date results injected with an invented score; a cut by the
@@ -288,7 +288,7 @@ summing.
      the number per workspace (it drops if it is almost always among the first 20; it
      rises, within the budget, if it often appears after the 30th).
 
-### 6. Reranking
+### Step 6: Reranking
 
 Today: ONNX multilingual cross-encoder (`mmarco-reranker` by default;
 `bge-reranker-v2-m3` INT8), chosen or disabled by the user with `/rerank`; it reorders up
@@ -313,7 +313,7 @@ LLM for a chunk-by-chunk "yes/no" (one call per chunk), duplicating the cross-en
 5. **Candidates beyond the budget are discarded**, not pushed to the end without
    evaluation.
 
-### 7. Selection
+### Step 7: Selection
 
 Today: at most 2/3/5 chunks per file, top-k 10/20/40, up to 20/40/60 thousand characters
 (unrelated to the model window); parents are not used; the "nothing found" gate uses the
@@ -346,7 +346,7 @@ RRF score.
    context — this is what calibrates stratification, the per-document limit and the two
    stages in each workspace.
 
-### 8. Context assembly
+### Step 8: Context assembly
 
 Today: each chunk in an XML tag with id, origin and a "version" deduced from the path
 (ADR-0140); U order after selection; retrieved text escaped (ADR-0136); one system prompt
@@ -388,7 +388,7 @@ selected chunks may come from different source files of the workspace.
 6. **Prompt caching:** the stable layers (1 to 3) go at the start of the prompt, to take
    advantage of the providers' caches.
 
-### 9. Generation and citations
+### Step 9: Generation and citations
 
 Today: in Fast, one call with history and prompt; streaming not always used; the LLM is
 instructed to cite, but nobody checks whether the cited id exists or whether the chunk
@@ -412,7 +412,7 @@ supports the sentence, and the citation is just text.
    the answer.
 6. **Language:** always the user's, even with documents in other languages.
 
-### 10. History and evaluation
+### Step 10: History and evaluation
 
 Today the history stores the question and the final answer (without XML or intermediate
 steps — ADR-0088), per workspace, in SQLite; citations are not stored; there is no

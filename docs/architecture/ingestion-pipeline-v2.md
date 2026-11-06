@@ -35,7 +35,7 @@ discussed and decided. This document is the basis for rebuilding the backlog
 
 ---
 
-## 1. Source selection
+## Section 1: Source selection
 
 ### Decisions
 
@@ -102,7 +102,7 @@ index that ships with each version and needs no sync. It is consulted only when 
 question is about AnyContext itself, through the `anycontext_help` tool
 (`retrieval-pipeline-v2.md`, step 1).
 
-## 2. Acquisition (download / read)
+## Section 2: Acquisition (download / read)
 
 ### Decisions
 
@@ -158,7 +158,7 @@ never losing content):
 4. **Transparency:** the mode of each site (static or rendered) appears in the source
    status, and the user can force rendering.
 
-## 3. Incremental diff
+## Section 3: Incremental diff
 
 ### Decisions
 
@@ -206,7 +206,7 @@ never losing content):
   asking. That violates the explicit action rule (step 1): at most, AnyContext suggests
   the likely path and the user confirms.
 
-## 4. Content classification
+## Section 4: Content classification
 
 ### Decisions
 
@@ -290,7 +290,7 @@ of opening the file:
   tries to guess passwords.
 - The vault is unlocked with the user's session (`identity-and-governance-v2.md`, topic 1).
 
-## 5. Parsing and chunking
+## Section 5: Parsing and chunking
 
 ### Decisions
 
@@ -417,7 +417,7 @@ There is no size limit; whether to wait is the user's call.
   semantic search: storing the table in a queryable format and answering by query is
   covered by the retrieval pipeline (`retrieval-pipeline-v2.md`, step 4).
 
-## 6. Quality gate and Document AI
+## Section 6: Quality gate and Document AI
 
 ### Decisions
 
@@ -512,7 +512,7 @@ time per image on CPU on each profile) before being fixed:
 Progressive processing: the image becomes searchable first through OCR and gets the
 description in the background.
 
-## 7. Chunk headers and metadata
+## Section 7: Chunk headers and metadata
 
 ### Decisions
 
@@ -668,7 +668,7 @@ a **capability of the model kits (hardware profiles)**:
   and AnyContext warns and reindexes the affected chunks (the same rule as an embedding
   model switch).
 
-## 8. Embedding
+## Section 8: Embedding
 
 ### Decisions
 
@@ -690,7 +690,7 @@ a **capability of the model kits (hardware profiles)**:
   remote providers and use of the available CPU/GPU in the local case. Today it is one call
   per file, without a limit, one at a time.
 
-## 9. Lexical indexing (BM25)
+## Section 9: Lexical indexing (BM25)
 
 ### Decisions
 
@@ -721,7 +721,7 @@ a **capability of the model kits (hardware profiles)**:
   in RRF; on by default only with a gain measured by the evaluation set. With cloud
   embedding or without sparse output, they are left out at no loss.
 
-## 10. Persistence in the vector store
+## Section 10: Persistence in the vector store
 
 ### Decisions
 
