@@ -4,6 +4,7 @@ version = "0.45.0"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "Development benchmarks for AnyContext (retrieval quality on a fixed corpus); not shipped"
+license = "LicenseRef-Levix-Proprietary"
 publish = false
 
 [lib]

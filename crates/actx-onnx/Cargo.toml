@@ -4,6 +4,7 @@ version = "0.45.0"
 edition = "2021"
 authors = ["LeviGuilherme <contato@levix.digital>"]
 description = "Specialized local ONNX neural execution engine and runtime adapters for AnyContext"
+license = "LicenseRef-Levix-Proprietary"
 
 [dependencies]
 async-trait = "0.1"
