@@ -5,7 +5,7 @@ from: levix-admin-hub
 to: any-context
 date: 2026-11-06T18:21:21.795Z
 subject: "Where shared crates are born: levix-crates (open) or levix-platform (proprietary)"
-status: seen
+status: done
 reply_to: 
 deferred: 
 thread: 20261106-182121-levix-admin-hub-where-shared-crates-are-born-levix-crate
@@ -26,3 +26,5 @@ A crate is born open unless it falls in the second list. Proprietary crates may 
 
 ### Closes when
 Acknowledged.
+
+> done (2026-11-06 19:17 UTC): notice acknowledged; no action needed now
