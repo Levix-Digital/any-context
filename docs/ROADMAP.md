@@ -4,11 +4,11 @@ The releases of the product in delivery order, from the MVP onwards. Each releas
 
 Each release: `## vX.Y.Z: <name>` with the fields `Status` (planned, in_progress, released), an optional `Target`, `Released` (the date, once released), `Goal` and `Items` (backlog ids separated by commas, `-` when empty). Edit this file with `plan-memory/roadmap.py` or by hand, and check it with `roadmap.py validate`.
 
-The rationale of these releases (principles, the goal of each release, the items grouped by area, what is needed from `levix-platform` and the versioning) is in the roadmap v2 decided on 2026-10-23: [`docs/plans/anycontext_roadmap_v2.md`](plans/anycontext_roadmap_v2.md). Its releases map to versions here: R1 is v1.0.0, R2 (v1.x) is v1.1.0, R3 is v2.0.0, R4 (v2.x) is v2.1.0 and Later is v3.0.0, a placeholder for unscheduled items.
+The rationale of these releases (principles, the goal of each release, the items grouped by area, what is needed from `levix-platform` and the versioning) is in the roadmap v2 decided on 2026-10-23: [`docs/plans/anycontext_roadmap_v2.md`](plans/anycontext_roadmap_v2.md). Its releases map to versions here: R1 is v1.0.0, R2 (v1.x) is v1.1.0, R3 is v2.0.0, R4 (v2.x) is v2.1.0 and Later is v3.0.0, a placeholder for unscheduled items. Since 2026-11-06 there is no Pro plan: the free edition is complete for one person (connectors-v2.md, decision 34), so what the roadmap v2 calls Free and Pro is the free edition.
 
 ## v1.0.0: Personal
 - **Status**: in_progress
-- **Goal**: Reach the market with Free and Pro on a correct base: an MVP in features on a complete foundation
+- **Goal**: Reach the market with the free edition, complete for one person, on a correct base: an MVP in features on a complete foundation
 - **Items**: ADJ-006, ADJ-007, ADJ-008, BUG-022, BUG-024, BUG-025, BUG-026, BUG-027, BUG-028, BUG-029, FEAT-020, FEAT-021, FEAT-022, FEAT-023, FEAT-031, FEAT-036, FEAT-047, FEAT-050, FEAT-057, FEAT-067, FEAT-069, FEAT-081, FEAT-082, FEAT-085, FEAT-088, FEAT-098, FEAT-101, FEAT-149, FEAT-160, FEAT-161, FEAT-168, FEAT-169, FEAT-170, FEAT-172, FEAT-173, FEAT-174, FEAT-175, FEAT-176, FEAT-177, FEAT-178, FEAT-179, FEAT-184, FEAT-185, FEAT-186, FEAT-188, FEAT-189, FEAT-190, FEAT-192, FEAT-193, FEAT-195, IMP-015, IMP-016, IMP-017, IMP-019, IMP-020, IMP-021, IMP-023, IMP-025, IMP-026, IMP-027, IMP-028, IMP-029, IMP-030, IMP-031, IMP-032, IMP-033, IMP-034, IMP-035, IMP-036, IMP-037, IMP-038, IMP-039, IMP-040, IMP-041, IMP-042, IMP-043, IMP-044, IMP-045, IMP-046, IMP-047, IMP-048, IMP-049, IMP-050, IMP-051, IMP-052, IMP-053, IMP-054, IMP-055, IMP-057, IMP-058, IMP-059, IMP-060, IMP-061, IMP-062, IMP-063, IMP-064, IMP-065
 
 ## v1.1.0: Personal evolution

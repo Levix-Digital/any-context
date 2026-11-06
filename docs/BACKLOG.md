@@ -230,7 +230,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Status**: open
 - **Found**: 2026-10-23, batch 2 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Audio and video (audit P2). Audio MP3, WAV, M4A, OGG, FLAC, Opus and the audio track of MP4, MKV, MOV, WebM read with Symphonia; local multilingual transcription with a Whisper-family ONNX model per profile, language detection and VAD. Embedded captions or a sibling .srt/.vtt are used directly. Chunks follow sentences and turns, locators are start and end in seconds, parents are blocks of a few minutes or chapters. It is the Audio and video connector of the Pro plan (connectors-v2.md, decisions 22 and 28).
+- **Description**: Design: docs/architecture/ingestion-pipeline-v2.md, section 5, Audio and video (audit P2). Audio MP3, WAV, M4A, OGG, FLAC, Opus and the audio track of MP4, MKV, MOV, WebM read with Symphonia; local multilingual transcription with a Whisper-family ONNX model per profile, language detection and VAD. Embedded captions or a sibling .srt/.vtt are used directly. Chunks follow sentences and turns, locators are start and end in seconds, parents are blocks of a few minutes or chapters. It is the Audio and video connector, part of Free (connectors-v2.md, decisions 22 and 34).
 
 ### FEAT-048: [ingestion] Speaker identification in transcripts
 - **Priority**: medium
@@ -1032,29 +1032,29 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/connectors-v2.md, decisions 6 and 30. Dropbox through its official API with cursor-based sync. Enterprise candidate: the local sync folder already covers personal use.
 
-### FEAT-168: [governance] Free and Pro plan limits
+### FEAT-168: [governance] Free and Enterprise plan scope
 - **Priority**: medium
 - **Epic**: EPIC-008
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/connectors-v2.md, decision 28. Free: local and internal-network files only, up to 3 workspaces. Pro: Free plus the Web and the Audio and video connectors built in, unlimited workspaces. No per-connector sales and no capability combinations sold as extra plans.
+- **Description**: Design: docs/architecture/connectors-v2.md, decision 34 (replaces 28). Free is complete for one person (personal use or a one-person business): local and internal-network files, the Web and the Audio and video connectors, unlimited workspaces, no registration. Enterprise adds the Admin Hub and the corporate connectors; Isolated is Enterprise without internet. No per-connector sales and no capability combinations sold as extra plans.
 
-### FEAT-169: [governance] Downgrade and lapsed plan deactivate, never delete
+### FEAT-169: [governance] Lapsed plan deactivates, never deletes
 - **Priority**: medium
 - **Epic**: EPIC-008
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/connectors-v2.md, decisions 26 and 29. Indexes the plan no longer covers stay on disk, out of search and sync, and can be deleted explicitly to free disk. Over the Free limit the user chooses once which 3 workspaces stay active, with no swapping afterwards. When the plan returns, the sources come back and only the incremental diff is reprocessed.
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 26 and 34. When an Enterprise or Isolated license lapses, the indexes it no longer covers stay on disk, out of search and sync, and can be deleted explicitly to free disk. When the license returns, the sources come back and only the incremental diff is reprocessed. Free has no workspace limit, so the old Free downgrade choice (decision 29) is void.
 
-### FEAT-170: [connectors] Web search fair-use daily ceiling in Pro
+### FEAT-170: [connectors] Web search fair-use daily ceiling
 - **Priority**: medium
 - **Epic**: EPIC-003
 - **Status**: open
 - **Found**: 2026-10-23, batch 6 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/connectors-v2.md, decision 31. Pro carries a high daily ceiling of web searches and page reads that normal use never reaches; reaching it pauses web search until the next day with a clear message while local search keeps working. The exact value is open and set from real usage data.
+- **Description**: Design: docs/architecture/connectors-v2.md, decisions 31 and 34. Web search, part of Free since decision 34, carries a high daily ceiling of web searches and page reads that normal use never reaches; reaching it pauses web search until the next day with a clear message while local search keeps working. The exact value is open and set from real usage data.
 
 ### FEAT-171: [connectors] Generic IMAP e-mail connector (Enterprise)
 - **Priority**: medium
@@ -1630,7 +1630,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Priority**: medium
 - **Status**: open
 - **Found**: 2026-11-06, product baseline 2026-11-06
-- **Description**: Pro connectors (Web, Audio and video) and Enterprise connectors (drives, SharePoint, IMAP and others), official APIs only. Design: docs/architecture/connectors-v2.md.
+- **Description**: The Web and Audio and video connectors (in Free) and the corporate connectors (drives, SharePoint, IMAP and others, in Enterprise), official APIs only. Design: docs/architecture/connectors-v2.md.
 
 ### EPIC-004: Desktop and terminal interfaces
 - **Priority**: medium
@@ -1654,7 +1654,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Priority**: high
 - **Status**: open
 - **Found**: 2026-11-06, product baseline 2026-11-06
-- **Description**: Personal accounts, key hierarchy and vault, encrypted index, plan license verified offline, Free and Pro limits, signed downloads. Design: docs/architecture/identity-and-governance-v2.md.
+- **Description**: Personal accounts, key hierarchy and vault, encrypted index, plan license verified offline, the Free and Enterprise plan scope, signed downloads. Design: docs/architecture/identity-and-governance-v2.md.
 
 ### EPIC-008: Enterprise governance and the shared index
 - **Priority**: medium

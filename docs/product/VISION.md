@@ -24,8 +24,7 @@ Analysts, lawyers, doctors, engineers and researchers spend a large part of the 
 
 Proprietary software (LICENSE), with the source code available to customers with an active agreement for audit only, under confidentiality, and optional escrow. Licenses are annual, signed by Levix and verified offline; never priced by usage, token or document.
 
-- **Free**: personal use, or a business run by one person alone; no registration, no Admin Hub. Local and internal-network files; up to 3 workspaces (connectors-v2, decision 28).
-- **Pro**: the personal paid plan: Free plus the Web connector (with a fair-use ceiling on web search) and the Audio and video connector; unlimited workspaces.
+- **Free**: complete for one person, for personal use or a business run by that person alone; no registration, no Admin Hub. Unlimited workspaces, local models, deep research, the Web connector (with a fair-use ceiling on web search) and the Audio and video connector. Nothing a person working alone needs is behind payment (connectors-v2, decision 34).
 - **Enterprise (organization)**: annual license per seat with a minimum, Admin Hub required: shared workspaces with curators, policies, SSO, auditing, shared index in the VPC, Model Server, corporate connectors, domain packs and the MCP server.
 - **Isolated**: annual license per installation plus dedicated support, with the Admin Hub update mirror.
 - **Services and pilots**: paid pilots of 30 to 60 days with a measurable goal, deployment, training and domain packs on demand.
@@ -46,7 +45,7 @@ The Admin Hub is the billing vehicle: one contract, one invoice per account, and
 - **Retrieval and answers**: hybrid search with re-ranking, relevance bands, token-budget selection, the nothing-found gate, Fast and Deep research modes, checked citations and the source report.
 - **Workspaces and memory**: separate projects with their own sources, models, settings and conversation history.
 - **Models**: local models by role and hardware profile, cloud providers chosen by the user, the Model Server for companies.
-- **Connectors**: Web and Audio and video (Pro); corporate connectors (drives, SharePoint, IMAP, and others) as Enterprise features.
+- **Connectors**: Web and Audio and video (Free); corporate connectors (drives, SharePoint, IMAP, and others) as Enterprise features.
 - **Surfaces**: the desktop app (Tauri), the CLI and terminal UI, and the MCP server.
 - **Identity, security and plans**: personal account and vault, key hierarchy, encrypted index, plan license verified offline, signed downloads.
 - **Enterprise governance**: Admin Hub integration, policies, curators, SSO, auditing, the shared index (AnyContext Server) and per-source access control.
@@ -71,6 +70,5 @@ The Admin Hub is the billing vehicle: one contract, one invoice per account, and
 
 ## Open Questions
 
-- The Levix strategy v2 (2026-11) says the free edition is complete for one person (unlimited workspaces, nothing a single user needs behind payment), while the plans decided on 2026-10-22 (connectors-v2, decision 28) limit Free to 3 workspaces and put Web and Audio and video in a paid Pro plan. Which one holds?
 - Prices, trial length and the web search fair-use ceiling (connectors-v2, "For the roadmap").
 - Target numbers for weekly questions per user and for accepted citations, set from the first month of usage data and the first pilots.

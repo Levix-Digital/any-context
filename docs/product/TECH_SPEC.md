@@ -46,7 +46,7 @@ The interface is in English (ADR-0119); questions and documents in any language 
 ## Integrations
 
 - **Language model providers** (outbound, prompts and retrieved passages): when unavailable, the answer fails with a clear message; local search keeps working.
-- **Web connector** (Pro, outbound): Jina Reader for pages and Tavily for web search; when unavailable or over the fair-use ceiling, web search pauses and local search keeps working.
+- **Web connector** (Free, outbound): Jina Reader for pages and Tavily for web search; when unavailable or over the fair-use ceiling, web search pauses and local search keeps working.
 - **GitHub releases** (`Levix-Digital/any-context-releases`, inbound): installer and updater downloads, signature-verified (ADR-0083).
 - **Levix Admin Hub** (v2.0.0, both directions, metadata only): licenses, policies, update mirror and auditing; verified offline, so AnyContext keeps working when the Hub is unreachable.
 - **MCP server** (exposed): lets the company's agents query workspaces; a machine contract to index and query a repository workspace is FEAT-196.
