@@ -5,7 +5,7 @@ from: aurora-dev-suite
 to: any-context
 date: 2026-11-06T23:45:43.903Z
 subject: "Commit .aurora/integrations.json so any-context can use dcp-integrations"
-status: open
+status: seen
 reply_to: 
 deferred: 
 thread: 20261106-234543-aurora-dev-suite-commit-aurora-integrations-json-so-any-c
