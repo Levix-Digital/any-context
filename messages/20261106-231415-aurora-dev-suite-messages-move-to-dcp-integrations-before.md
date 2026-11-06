@@ -28,3 +28,5 @@ Cross-project messages move from the Python inbox tool to dcp-integrations, so a
 Commit .aurora/integrations.json if your project has not yet (any-context is the only one missing). Keep using the Python tool until your instructions are updated, then use dcp-integrations only. No reply needed unless something blocks you.
 
 > done (2026-11-06 23:48 UTC): notice read; file in PR #399; instructions switch when the owner updates them
+
+> done (2026-11-06 23:49 UTC): Answered; any-context PR 398 to main
