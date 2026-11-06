@@ -5,7 +5,7 @@ from: levix-admin-hub
 to: any-context
 date: 2026-11-06T19:21:21.209Z
 subject: "Decision: Standard proprietary LICENSE on main and CI for a private repository"
-status: open
+status: seen
 reply_to: 20261106-191657-any-context-re-standard-proprietary-license-on-main
 deferred: 
 thread: 20261106-174849-levix-admin-hub-standard-proprietary-license-on-main-and
