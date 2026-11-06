@@ -42,7 +42,7 @@ roles of each workspace, the individual chat and the vault of file passwords.
 6. Personal and corporate environments
 7. User profile, memories and MCP server
 
-### 1. Local accounts and session
+### Topic 1: Local accounts and session
 
 Today there is no user: everything lives in the OS account's `settings.db`; there are only
 traces (an `added_by_email` column defaulting to `"user"`, identity injection into the
@@ -122,7 +122,7 @@ session — ADR-0082, FEAT-013 in the backlog).
   orderly way (e.g. device returned to IT), the policy decides whether its data is deleted
   or kept. The personal environment is never affected.
 
-### 2. Key hierarchy
+### Topic 2: Key hierarchy
 
 Today there is a single key, derived from the machine id with a salt fixed in the code,
 that protects only LanceDB text fields; the lexical index is in clear; and **API keys are
@@ -161,7 +161,7 @@ in AnyContext these criteria belong to the item that adopts the platform crates.
    which stays zero-knowledge day to day. Each use is audited and the user is told that the
    company has this recovery power.
 
-### 3. Roles and sharing
+### Topic 3: Roles and sharing
 
 Already decided (`deployment-architecture-v2.md`): owner, editor and reader roles;
 organization workspaces with the admin as owner and read-only for everyone else; individual
@@ -203,7 +203,7 @@ index is shared.
    origin (e.g. SharePoint or file server permissions). Implementation:
    `ingestion-pipeline-v2.md`, per-source access control section (audit P23).
 
-### 4. Governance engine and policies
+### Topic 4: Governance engine and policies
 
 Today the core has no policy at all. The Admin Hub specification already defines a rich
 policy (model mode and allowed models, token quota, OCR, web search with scope and
@@ -239,7 +239,7 @@ customer hosting their own Admin Hub.
 7. **Audit:** blocked attempts are logged locally and sent to the Admin Hub only as
    metadata (rule, when, device), never with content.
 
-### 5. Admin Hub integration
+### Topic 5: Admin Hub integration
 
 The initial Admin Hub specifications (enrollment, outbound-only WebSocket, heartbeat,
 kill-switch, ITSM, SCIM, offline validity) fit, with these adjustments:
@@ -269,7 +269,7 @@ kill-switch, ITSM, SCIM, offline validity) fit, with these adjustments:
 Commercial decision for the roadmap: seats per device (as in the specification) or per
 user (common in the market); the architecture supports both.
 
-### 6. Personal and corporate environments
+### Topic 6: Personal and corporate environments
 
 Replaces base decision 4 ("migration of the local account to the corporate one"): a
 company's enrollment must not affect the family accounts on a remote-work machine.
@@ -300,7 +300,7 @@ company's enrollment must not affect the family accounts on a remote-work machin
    query crosses workspaces", one level up). Licenses are separate too: a personal
    plan license does not apply to the corporate environment, and vice versa.
 
-### 7. User profile, memories and MCP server
+### Topic 7: User profile, memories and MCP server
 
 Decided 2026-10-23, for items of the old backlog that had no v2 design.
 

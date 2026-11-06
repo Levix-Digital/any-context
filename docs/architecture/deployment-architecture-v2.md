@@ -23,7 +23,7 @@ complexity with no return.
 4. Embedding model identity (what produces the vector, not where it runs)
 5. Ingestion worker as a separable role
 
-### 1. Storage port
+### Seam 1: Storage port
 
 Today there is no interface: the core uses `NativeLanceStore` directly (9 files) and three
 uncoordinated stores — LanceDB (vectors and text), the lexical index and `settings.db`
@@ -51,7 +51,7 @@ uncoordinated stores — LanceDB (vectors and text), the lexical index and `sett
 - **Opening the original file** (browsing folders, opening files, viewing sites without
   leaving AnyContext) belongs to the Tauri 2 UI and is not decided here.
 
-### 2. Model port, by role
+### Seam 2: Model port, by role
 
 Today only chat and embedding have an interface (`LmProvider` in `actx-lm`: OpenAI,
 Anthropic, Gemini, Gemma, mock); the ONNX models have no common interface, and none can
@@ -86,7 +86,7 @@ run on a server. The Admin Hub model policies are not wired to the core.
   Speech-to-Text, and the Microsoft and AWS equivalents), for customers who already pay for
   them. They follow the endpoint trust level (seam 3).
 
-### 3. Trust level of each endpoint
+### Seam 3: Trust level of each endpoint
 
 Today this notion does not exist: any configured provider receives the full context.
 
@@ -111,7 +111,7 @@ Today this notion does not exist: any configured provider receives the full cont
   applications that consume AnyContext through the MCP server (Cursor, Claude Desktop) are
   external consumers, governed by the policy.
 
-### 4. Embedding model identity
+### Seam 4: Embedding model identity
 
 `embedding_target` is stored in each chunk and there is one table per workspace and target
 (ingestion, steps 7 and 10). This seam defines when two targets are the same.
@@ -128,7 +128,7 @@ Today this notion does not exist: any configured provider receives the full cont
   changing the name, a server updated with another version or precision) and decides cases
   of different precision (e.g. fp16 on the GPU versus fp32 on the desktop).
 
-### 5. Ingestion worker
+### Seam 5: Ingestion worker
 
 Today each sync spawns an `actx --sync-worker` process (or a thread, if the process fails
 to start); progress, status and cancellation go through an SQLite table; there is no
