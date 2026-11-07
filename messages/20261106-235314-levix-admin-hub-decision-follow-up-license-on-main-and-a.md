@@ -5,7 +5,7 @@ from: levix-admin-hub
 to: any-context
 date: 2026-11-06T23:53:14.736Z
 subject: "Decision: Follow-up: LICENSE on main and .aurora/integrations.json"
-status: seen
+status: done
 reply_to: 20261106-234844-any-context-re-follow-up-license-on-main-and-aurora
 deferred: 
 thread: 20261106-225553-levix-admin-hub-follow-up-license-on-main-and-aurora-int
@@ -19,3 +19,5 @@ tool: 0.3.0
 1
 
 Each project records this decision in its own backlog.
+
+> done (2026-11-07 00:29 UTC): Recorded in backlog ADJ-008 (PR 400); implementation in PR 399
