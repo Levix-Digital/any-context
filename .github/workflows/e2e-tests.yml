@@ -5,9 +5,23 @@ on:
     branches:
       - dev
       - main
+    # Documentation-only changes skip the build. README.md, config/*.md and the benchmark
+    # corpus are compiled into the product or used by tests, so they are not ignored.
+    paths-ignore:
+      - "docs/**"
+      - "specs/**"
+      - ".specify/**"
+      - ".claude/**"
+      - "TECDOC.md"
   push:
     branches:
       - dev
+    paths-ignore:
+      - "docs/**"
+      - "specs/**"
+      - ".specify/**"
+      - ".claude/**"
+      - "TECDOC.md"
   workflow_dispatch:
 
 concurrency:
@@ -29,11 +43,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # Private repository: Windows minutes are billed at twice the Linux rate, so Windows
+        # runs only on the release pull request into main and on manual runs. Pull requests
+        # into dev and pushes to dev run Linux only. Release candidates are built on both
+        # systems by release.yml.
+        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.base_ref == 'main')) && '["ubuntu-latest", "windows-latest"]' || '["ubuntu-latest"]') }}
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      # Private-repository runners have less free disk; linking the test binaries ran out of
+      # space (ld bus error). Remove preinstalled toolchains the build does not use.
+      - name: Free Disk Space (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost /opt/hostedtoolcache/CodeQL
+          sudo apt-get clean
+          df -h /
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -64,6 +91,25 @@ jobs:
             echo "ORT_DYLIB_PATH=$PWD/.ort/libonnxruntime.so" >> "$GITHUB_ENV"
           fi
           echo "ACTX_REQUIRE_ORT=1" >> "$GITHUB_ENV"
+
+      # FEAT-067: the embedder reference test needs the real multilingual-e5-small files
+      # (about 135 MB), fetched by the product's verified download and cached by the catalog file.
+      - name: Embedding Model Cache
+        uses: actions/cache@v4
+        with:
+          path: .models-embedder
+          key: embedder-e5-small-${{ hashFiles('crates/any-context-core-rs/src/ingestion/model_manager.rs') }}
+
+      - name: Provision Embedding Model
+        shell: bash
+        run: |
+          ACTX_MODELS_DIR="$PWD/.models-embedder" cargo run -q -p actx-cli -- download multilingual-e5-small
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            echo "ACTX_EMBEDDER_MODELS_DIR=$(cygpath -w "$PWD/.models-embedder")" >> "$GITHUB_ENV"
+          else
+            echo "ACTX_EMBEDDER_MODELS_DIR=$PWD/.models-embedder" >> "$GITHUB_ENV"
+          fi
+          echo "ACTX_REQUIRE_EMBEDDER_TESTS=1" >> "$GITHUB_ENV"
 
       - name: Run Workspace Tests
         run: cargo test --workspace --verbose
