@@ -1586,6 +1586,14 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/cli-and-release-v2.md, section 3. The core reaches install paths, release lookup and update logging through a port implemented by an adapter, so actx_installer can be listed in architecture.forbidden_core_imports (today commands/engine.rs calls it directly). Supersedes IMP-002.
 
+### IMP-066: [models] Move the generic ONNX runtime parts of actx-onnx to the shared levix-onnx crate
+- **Priority**: low
+- **Epic**: EPIC-005
+- **Status**: open
+- **Found**: 2026-11-08, 2026-11-08, cross-project agreement with docmapper
+- **Plan**: -
+- **Description**: Product owner decision of 2026-11-08 (agreement with DocMapper, thread 20261108-200548-docmapper-shared-local-onnx-inference-crate-in-lev): one shared, generic local ONNX crate, levix-onnx, in Levix-Digital/levix-platform (publish = false, consumed by git tag), opened by DocMapper and reviewed by AnyContext. Its scope is runtime loading (ort =2.0.0-rc.14 with load-dynamic, lazy explicit init_from as in ADR-0130 D1), execution device selection (CPU first, accelerators behind features), ModelSession, and tokenizer loading behind a feature; model files come from a path the caller gives. Re-ranker, query classifier, layout, vision and prompt logic stay in actx-onnx, which becomes the product layer on top of levix-onnx. This item moves runtime, session, device and tokenizer from actx-onnx to levix-onnx once the crate is published, with no behavior change (reranker benchmark and IMP-065 results unchanged), and records the move in an ADR amending ADR-0130. The ort pin is upgraded only in levix-onnx from then on. Not scheduled in v1.0.0; DocMapper does not wait for it. Depends on the levix-platform pull request that creates levix-onnx.
+
 ## Adjustments
 
 ### ADJ-006: [cli] Retire the TUI when the desktop app reaches parity
