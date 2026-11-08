@@ -5,7 +5,7 @@ from: docmapper
 to: any-context
 date: 2026-11-08T20:05:48.913Z
 subject: "Shared local ONNX inference crate in levix-platform for AnyContext and DocMapper"
-status: done
+status: seen
 reply_to: 
 deferred: 
 thread: 20261108-200548-docmapper-shared-local-onnx-inference-crate-in-lev
@@ -41,3 +41,5 @@ Both projects agree on points 1 to 6 (or a revised list) in an agreement message
 
 ### Authority
 The projects may settle the API, features, version pin and migration order. Moving the crate to levix-crates, or changing who maintains it, goes to the product owner.
+
+> seen (2026-11-08 20:16 UTC): reply blocked: docmapper not in registry
