@@ -1437,9 +1437,9 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 ### IMP-046: [retrieval] Nothing-found and weak-evidence gate by reranker bands
 - **Priority**: medium
 - **Epic**: EPIC-002
-- **Status**: open
+- **Status**: planned
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
-- **Plan**: -
+- **Plan**: imp_046_nothing_found_gate
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 7, Selection. No relevant chunk in automatic Fast escalates to Deep; nothing after Deep, or with Fast pinned, answers that nothing was found without calling the LLM, suggesting rephrasing, adding sources or @source; only maybe-band chunks give an answer with an explicit weak-evidence warning. Replaces today's gate on the RRF score.
 
 ### IMP-047: [retrieval] Context grouped by file, with ingestion locators, dates and versions
