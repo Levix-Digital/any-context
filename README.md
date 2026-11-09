@@ -112,7 +112,7 @@ If the embedding provider fails during a sync (an invalid key, a rate limit, a n
 | `/mode strict` | Answer only from the workspace's documents (default) |
 | `/mode hybrid` | Workspace facts first, then clearly labeled general knowledge |
 | `/mode proactive` | Combine documents, web results and general knowledge, each labeled |
-| `/search auto` | Choose quick or deep research per question (default) |
+| `/search auto` | Choose quick or deep research per question (default); a quick search that finds no relevant excerpt moves on to deep research |
 | `/search fast`, `/search deep` | Always use quick answers or deep research |
 | `/fast <question>`, `/deep <question>` | Use one mode for a single question |
 | `/web-search on` / `off` | Allow live web search for this workspace |
@@ -213,7 +213,8 @@ To uninstall, download and run the uninstaller from the [releases page](https://
 | Problem | Fix |
 |---|---|
 | Answers start with `Mock response to:` | No working model is configured: save a key with `/keys <provider> <key>` or select a local model with `/model ollama/<model>`. |
-| "No information or documents matching the query" | The workspace has no relevant indexed content yet: check `/sources` and `/status`, wait for the sync to finish, or rephrase. |
+| "Nothing relevant to ... was found in the workspace" | No indexed excerpt is relevant to the question, so no model was called: check `/sources` and `/status`, wait for the sync to finish, add the sources that hold the answer, or rephrase. |
+| An answer starts with `Weak evidence: no excerpt in the workspace clearly answers this question` | The excerpts found are only possibly related, so check the cited sources. Rephrase the question, or add the sources that hold the answer. |
 | A sync reports `⚠ N source(s) offline, their index is kept` | The folder or a subfolder cannot be read: reconnect the drive, share or cloud mount and run `/sync`. If the folder moved, remove it with `/folder --remove <old path>` and add the new path with `/folder <new path>`. |
 | A sync reports `online-only file(s) not indexed` | Those files are only in the cloud. Mark the folder or files "Always keep on this device" in OneDrive, Dropbox or iCloud and run `/sync`. |
 | Web search answers `Web search is off: no search API key` | Save a Tavily key with `/keys tavily <key>`; `/web-search on` alone is not enough. |

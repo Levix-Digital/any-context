@@ -550,7 +550,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Status**: open
 - **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
 - **Plan**: -
-- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 3, Question understanding, and step 1, Question input. Without an LLM planner: `@source` restricts the search to a source inside the workspace, dates come from a multilingual parser (today English month names only) and entities from the entity index.
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 3, Question understanding, and step 1, Question input. Without an LLM planner: `@source` restricts the search to a source inside the workspace, dates come from a multilingual parser (today English month names only) and entities from the entity index. The nothing-found answer (`nothing_found_message`, IMP-046) then also suggests `@source`.
 
 ### FEAT-089: [retrieval] Enumerative questions answered exhaustively, with the count checked
 - **Priority**: medium
