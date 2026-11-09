@@ -72,6 +72,15 @@ pub trait DeepSearchRetriever: Send + Sync {
     }
 }
 
+/// The dedup key of a chunk: its id, else its file and line range.
+fn chunk_key(chunk: &RetrievedChunk) -> String {
+    if !chunk.id.is_empty() {
+        chunk.id.clone()
+    } else {
+        format!("{}::{}:{}", chunk.file_path, chunk.start_line.unwrap_or(0), chunk.end_line.unwrap_or(0))
+    }
+}
+
 /// What the collected chunks support: `None` when there is none, else sufficient or weak (all
 /// in the maybe band).
 pub fn evidence_of(chunks: &[RetrievedChunk]) -> Option<crate::Evidence> {
@@ -342,6 +351,9 @@ impl DeepSearchOrchestrator {
         let mut seen_chunk_keys: HashSet<String> = HashSet::new();
         // First warning a batch retrieval reported, shown once at the end (IMP-040).
         let mut notice: Option<String> = None;
+        // The last batch error, kept so that a failed search is never reported as nothing found.
+        let mut retrieval_error: Option<AgentError> = None;
+        let mut any_batch_ok = false;
 
         // 1. Session History Preparation
         let mut working_history = Vec::new();
@@ -388,11 +400,16 @@ impl DeepSearchOrchestrator {
             }
 
             // A. Batch retrieve chunks for current sub-queries
-            let retrieved = self
-                .retriever
-                .retrieve_batch(&current_search_queries)
-                .await
-                .unwrap_or_default();
+            let retrieved = match self.retriever.retrieve_batch(&current_search_queries).await {
+                Ok(chunks) => {
+                    any_batch_ok = true;
+                    chunks
+                }
+                Err(e) => {
+                    retrieval_error = Some(e);
+                    Vec::new()
+                }
+            };
             if notice.is_none() {
                 notice = self.retriever.last_notice();
             }
@@ -400,14 +417,15 @@ impl DeepSearchOrchestrator {
             // B. Deduplicate and collect the new chunks: the retriever's cross-encoder already
             // judged them (IMP-043).
             for chunk in retrieved {
-                let key = if !chunk.id.is_empty() {
-                    chunk.id.clone()
-                } else {
-                    format!("{}::{}:{}", chunk.file_path, chunk.start_line.unwrap_or(0), chunk.end_line.unwrap_or(0))
-                };
+                let key = chunk_key(&chunk);
 
-                if seen_chunk_keys.insert(key) {
+                if seen_chunk_keys.insert(key.clone()) {
                     all_accepted_chunks.push(chunk);
+                } else if !chunk.weak {
+                    // A later question judged a chunk already collected as relevant (IMP-046).
+                    if let Some(seen) = all_accepted_chunks.iter_mut().find(|c| chunk_key(c) == key) {
+                        seen.weak = false;
+                    }
                 }
             }
 
@@ -478,6 +496,12 @@ impl DeepSearchOrchestrator {
         // --------------------------------------------------------------------
         let weak = match evidence_of(&all_accepted_chunks) {
             None => {
+                // Every search failed: report the failure, not "nothing found".
+                if !any_batch_ok {
+                    if let Some(e) = retrieval_error {
+                        return Err(e);
+                    }
+                }
                 let message = self.retriever.nothing_found_message(input);
                 return Ok(self
                     .finish_without_synthesis(message, input, session_id, event_tx.as_ref(), notice, total_turns_executed, start_time)
@@ -596,7 +620,7 @@ impl DeepSearchOrchestrator {
             if let Some(ref n) = notice {
                 let _ = tx.send(AgentEvent::Notice(n.clone()));
             }
-            let _ = tx.send(AgentEvent::Done { total_turns, total_tokens: Some(0) });
+            let _ = tx.send(AgentEvent::Done { total_turns, total_tokens: None });
         }
         if let (Some(sid), Some(ref store)) = (session_id, &self.session_store) {
             let _ = store

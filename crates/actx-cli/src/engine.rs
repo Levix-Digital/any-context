@@ -796,11 +796,16 @@ impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
     }
 
     fn nothing_found_message(&self, query: &str) -> String {
-        let db = NativeConfigDb::open_default().ok();
-        let folders = db.as_ref().and_then(|d| d.get_workspace_folders(&self.workspace).ok()).unwrap_or_default();
-        let web_urls = db.as_ref().and_then(|d| d.get_workspace_web_urls(&self.workspace).ok()).unwrap_or_default();
-        nothing_found_message(&self.workspace, &folders, &web_urls, query)
+        workspace_nothing_found_message(&self.workspace, query)
     }
+}
+
+/// The nothing-found answer with the workspace's monitored sources, read only when needed.
+fn workspace_nothing_found_message(workspace: &str, query: &str) -> String {
+    let db = NativeConfigDb::open_default().ok();
+    let folders = db.as_ref().and_then(|d| d.get_workspace_folders(workspace).ok()).unwrap_or_default();
+    let web_urls = db.as_ref().and_then(|d| d.get_workspace_web_urls(workspace).ok()).unwrap_or_default();
+    nothing_found_message(workspace, &folders, &web_urls, query)
 }
 
 /// Live status of a workspace: sync state from SQLite, chunk count from LanceDB and monitored sources.
@@ -890,19 +895,11 @@ impl actx_agent::DeterministicRetriever for PipelineDeterministicRetriever {
         let notice = output.notices();
         let results = output.results;
 
-        let db = NativeConfigDb::open_default().ok();
-        let folders = db.as_ref()
-            .and_then(|d| d.get_workspace_folders(&self.workspace).ok())
-            .unwrap_or_default();
-        let web_urls = db.as_ref()
-            .and_then(|d| d.get_workspace_web_urls(&self.workspace).ok())
-            .unwrap_or_default();
-
         // The gate reads the reranker bands (IMP-046): nothing found answers without the LLM, and
         // an answer made only of maybe-band excerpts gets the weak-evidence warning.
         let evidence = match classify_evidence(&results) {
             EvidenceClass::Nothing => {
-                let message = nothing_found_message(&self.workspace, &folders, &web_urls, query);
+                let message = workspace_nothing_found_message(&self.workspace, query);
                 return Ok(actx_agent::DeterministicRetrievalOutput::ZeroContext { message, notice });
             }
             EvidenceClass::Weak => actx_agent::Evidence::Weak,

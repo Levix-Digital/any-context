@@ -243,3 +243,63 @@ fn evidence_of_reads_the_weak_flags() {
     assert_eq!(evidence_of(&[chunk("a", true)]), Some(Evidence::Weak));
     assert_eq!(evidence_of(&[chunk("a", true), chunk("b", false)]), Some(Evidence::Sufficient));
 }
+
+/// Deep retriever whose batches return a different list on each call, or fail.
+struct ScriptedRetriever(Mutex<Vec<Result<Vec<RetrievedChunk>, String>>>);
+
+#[async_trait]
+impl DeepSearchRetriever for ScriptedRetriever {
+    async fn retrieve_batch(&self, _queries: &[String]) -> Result<Vec<RetrievedChunk>, AgentError> {
+        let mut script = self.0.lock().unwrap();
+        let next = if script.len() > 1 { script.remove(0) } else { script[0].clone() };
+        next.map_err(AgentError::Internal)
+    }
+}
+
+/// Answers with one gap query on the first reflection, then none.
+#[derive(Clone, Default)]
+struct OneGapProvider {
+    inner: KindProvider,
+}
+
+#[async_trait]
+impl LmProvider for OneGapProvider {
+    fn provider_id(&self) -> &'static str {
+        "one_gap"
+    }
+
+    async fn chat_complete(&self, request: ChatRequest) -> Result<ChatResponse, LmError> {
+        let mut resp = self.inner.answer(&request);
+        let reflections = self.inner.kinds().iter().filter(|k| **k == "reflect").count();
+        if resp.content == "[]" && reflections == 1 {
+            resp.content = r#"["gap question"]"#.into();
+        }
+        Ok(resp)
+    }
+
+    async fn chat_stream(&self, request: ChatRequest) -> Result<BoxedChunkStream, LmError> {
+        self.inner.chat_stream(request).await
+    }
+}
+
+fn scripted(provider: Arc<dyn LmProvider>, script: Vec<Result<Vec<RetrievedChunk>, String>>) -> DeepSearchOrchestrator {
+    DeepSearchOrchestrator::new(provider, Arc::new(ScriptedRetriever(Mutex::new(script))), DeepSearchConfig::default(), AgentConfig::default(), None)
+}
+
+#[tokio::test]
+async fn a_failed_deep_search_is_an_error_not_nothing_found() {
+    let provider = KindProvider::default();
+    let dso = scripted(Arc::new(provider.clone()), vec![Err("database unavailable".into())]);
+    let err = dso.run(QUESTION, None, None).await.unwrap_err();
+    assert!(err.to_string().contains("database unavailable"), "{err}");
+    assert!(!provider.kinds().contains(&"synthesis"));
+}
+
+#[tokio::test]
+async fn a_chunk_judged_relevant_later_is_no_longer_weak() {
+    let provider = OneGapProvider::default();
+    let dso = scripted(Arc::new(provider.clone()), vec![Ok(vec![chunk("a", true)]), Ok(vec![chunk("a", false)])]);
+    let resp = dso.run(QUESTION, None, None).await.unwrap();
+    assert_eq!(resp.content, "deep answer", "no weak-evidence warning");
+    assert!(provider.inner.kinds().iter().filter(|k| **k == "reflect").count() >= 1);
+}

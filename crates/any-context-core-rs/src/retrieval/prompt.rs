@@ -20,7 +20,6 @@ fn version_token_regex() -> &'static Regex {
     REGEX.get_or_init(|| Regex::new(r"^v\d+(?:\.\d+)*$").unwrap())
 }
 
-/// Isolation rules shared by every prompt that answers from `<retrieved_context>`.
 /// The weak-evidence rule, after a blank line, when every chunk is in the maybe band (IMP-046).
 fn weak_evidence_rule(chunks: &[HybridSearchResult]) -> String {
     if classify_evidence(chunks) == EvidenceClass::Weak {
@@ -30,6 +29,7 @@ fn weak_evidence_rule(chunks: &[HybridSearchResult]) -> String {
     }
 }
 
+/// Isolation rules shared by every prompt that answers from `<retrieved_context>`.
 fn isolation_rules(workspace: &str) -> String {
     format!(
 r#"STRICT CONTEXT ISOLATION RULES (ANTI-HALLUCINATION):

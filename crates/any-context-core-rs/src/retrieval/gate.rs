@@ -17,7 +17,7 @@ pub const WEAK_EVIDENCE_RULE: &str = "WEAK EVIDENCE: none of the excerpts below 
 pub enum EvidenceClass {
     /// No chunk was delivered.
     Nothing,
-    /// Every delivered chunk is in the maybe band.
+    /// Every delivered chunk is in the maybe band (or below it, when the relevance cut is off).
     Weak,
     /// A relevant chunk, a pinned match, or chunks the reranker did not band.
     Sufficient,
@@ -29,7 +29,7 @@ impl EvidenceClass {
         let mut any = false;
         for band in bands {
             any = true;
-            if band != Some(RelevanceBand::Maybe) {
+            if matches!(band, None | Some(RelevanceBand::Relevant)) {
                 return EvidenceClass::Sufficient;
             }
         }
@@ -95,6 +95,11 @@ mod tests {
         assert_eq!(EvidenceClass::of_bands([Some(Maybe), Some(Relevant)]), EvidenceClass::Sufficient);
         // A pinned file-name match has no band.
         assert_eq!(EvidenceClass::of_bands([None, Some(Maybe)]), EvidenceClass::Sufficient);
+    }
+
+    #[test]
+    fn irrelevant_chunks_kept_without_the_cut_are_not_sufficient() {
+        assert_eq!(EvidenceClass::of_bands([Some(RelevanceBand::Irrelevant), Some(Maybe)]), EvidenceClass::Weak);
     }
 
     #[test]
