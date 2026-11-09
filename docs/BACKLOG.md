@@ -1434,14 +1434,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 2, Routing. Each Deep turn refines or decomposes the question from what was found, searches, and evaluates what is missing. Default maximum of 3 turns (up to 5 only through a domain pack), stopping early when evidence is enough, plus a token ceiling; the default is tuned by the evaluation set.
 
-### IMP-046: [retrieval] Nothing-found and weak-evidence gate by reranker bands
-- **Priority**: medium
-- **Epic**: EPIC-002
-- **Status**: planned
-- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
-- **Plan**: imp_046_nothing_found_gate
-- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 7, Selection. No relevant chunk in automatic Fast escalates to Deep; nothing after Deep, or with Fast pinned, answers that nothing was found without calling the LLM, suggesting rephrasing, adding sources or @source; only maybe-band chunks give an answer with an explicit weak-evidence warning. Replaces today's gate on the RRF score.
-
 ### IMP-047: [retrieval] Context grouped by file, with ingestion locators, dates and versions
 - **Priority**: medium
 - **Epic**: EPIC-002
@@ -2474,3 +2466,12 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Closed**: 2026-11-06, #393, #396
 - **Description**: Design: docs/architecture/cli-and-release-v2.md, section 5. The repository had no LICENSE file and the README told readers to contact Levix Digital. Decided 2026-11-06 by the owner (strategy and distribution document v2): AnyContext is proprietary under the shared Levix Digital Proprietary License with Customer Source Access, byte-identical to levix-admin-hub's LICENSE (sha256 ddb2b49f...a60407e2), every crate declares license = "LicenseRef-Levix-Proprietary", and the private repository runs Windows CI only on the release pull request into main and on manual runs (cross-project thread 20261106-174849 with levix-admin-hub, approved). Follow-up decided 2026-11-06 (cross-project thread 20261106-225553 with levix-admin-hub, owner decision): the LICENSE and .aurora/integrations.json reach main ahead of the next release, byte-identical to dev, in PR #399. Supersedes ADJ-002.
+
+### IMP-046: [retrieval] Nothing-found and weak-evidence gate by reranker bands
+- **Priority**: medium
+- **Epic**: EPIC-002
+- **Status**: done
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: imp_046_nothing_found_gate
+- **Closed**: 2026-11-09, PR #403
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 7, Selection. No relevant chunk in automatic Fast escalates to Deep; nothing after Deep, or with Fast pinned, answers that nothing was found without calling the LLM, suggesting rephrasing, adding sources or @source; only maybe-band chunks give an answer with an explicit weak-evidence warning. Replaces today's gate on the RRF score.

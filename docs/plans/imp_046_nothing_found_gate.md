@@ -3,10 +3,10 @@ plan_id: imp_046_nothing_found_gate
 project: any-context
 title: Nothing-found and weak-evidence gate by relevance bands
 version: v1.0.0
-status: active
+status: in_progress
 author: LeviGuilherme
 created_at: '2026-11-09T16:45:55'
-updated_at: '2026-11-09T16:45:55'
+updated_at: '2026-11-09T17:27:45'
 session_id: null
 tags:
 - retrieval
@@ -19,9 +19,13 @@ backlog_items:
 spec_dir: specs/008-nothing-found-gate
 milestones:
 - name: M1 Core and agent
-  done: false
+  done: true
+  done_at: '2026-11-09'
+  by: LeviGuilherme
 - name: M2 Benchmark
-  done: false
+  done: true
+  done_at: '2026-11-09'
+  by: LeviGuilherme
 - name: M3 Docs and checks
   done: false
 status_log:
@@ -29,6 +33,12 @@ status_log:
   by: LeviGuilherme
   status: active
   note: Plan created
+- at: '2026-11-09T17:27:43'
+  by: LeviGuilherme
+  note: 'Milestone ''M1 Core and agent'' completed: PR #403'
+- at: '2026-11-09T17:27:45'
+  by: LeviGuilherme
+  note: 'Milestone ''M2 Benchmark'' completed: PR #403'
 ---
 
 # Nothing-found and weak-evidence gate by relevance bands
