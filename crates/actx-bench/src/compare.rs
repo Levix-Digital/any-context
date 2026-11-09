@@ -120,6 +120,10 @@ pub fn summary(current: &RunResult, comparison: Option<&Comparison>) -> String {
         m.delivered_chunks_mean, m.delivered_tokens_mean
     ));
     out.push_str(&format!(
+        "\nWeak evidence (delivered pass, reported only): {:.4} of the negatives and {:.4} of the positives would be answered with the weak-evidence warning.\n",
+        m.weak_evidence_rate, m.positive_weak_evidence_rate
+    ));
+    out.push_str(&format!(
         "\nLatency (delivered pass, reported only): mean {:.1} ms, p95 {:.1} ms over {} questions.\n",
         current.latency_ms.mean, current.latency_ms.p95, current.latency_ms.questions
     ));
@@ -172,6 +176,7 @@ mod tests {
             best_relevant_score: None,
             delivered_chunks: 0,
             delivered_tokens: 0,
+            weak_evidence: false,
         }
     }
 

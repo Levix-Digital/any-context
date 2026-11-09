@@ -45,6 +45,10 @@ pub struct RetrievedChunk {
     /// Last modification date of the source (RFC 3339), when known.
     #[serde(default)]
     pub last_modified: Option<String>,
+    /// The reranker put the chunk in the maybe band (IMP-046); `false` for relevant, pinned or
+    /// unbanded chunks.
+    #[serde(default)]
+    pub weak: bool,
 }
 
 /// Abstract contract for asynchronous batch chunk retrieval
@@ -57,6 +61,26 @@ pub trait DeepSearchRetriever: Send + Sync {
     /// example, semantic search did not run, IMP-040).
     fn last_notice(&self) -> Option<String> {
         None
+    }
+
+    /// The answer given without a synthesis call when no turn found anything (IMP-046).
+    fn nothing_found_message(&self, query: &str) -> String {
+        format!(
+            "Nothing relevant to '{}' was found in the workspace.\n\n💡 Suggestions:\n• Rephrase the question with other terms, names or file names.\n• Add the sources that hold the answer.",
+            query.trim()
+        )
+    }
+}
+
+/// What the collected chunks support: `None` when there is none, else sufficient or weak (all
+/// in the maybe band).
+pub fn evidence_of(chunks: &[RetrievedChunk]) -> Option<crate::Evidence> {
+    if chunks.is_empty() {
+        None
+    } else if chunks.iter().all(|c| c.weak) {
+        Some(crate::Evidence::Weak)
+    } else {
+        Some(crate::Evidence::Sufficient)
     }
 }
 
@@ -449,6 +473,25 @@ impl DeepSearchOrchestrator {
         }
 
         // --------------------------------------------------------------------
+        // Gate (IMP-046): nothing found answers without the synthesis call; weak evidence
+        // puts the warning before the answer.
+        // --------------------------------------------------------------------
+        let weak = match evidence_of(&all_accepted_chunks) {
+            None => {
+                let message = self.retriever.nothing_found_message(input);
+                return Ok(self
+                    .finish_without_synthesis(message, input, session_id, event_tx.as_ref(), notice, total_turns_executed, start_time)
+                    .await);
+            }
+            Some(evidence) => evidence == crate::Evidence::Weak,
+        };
+        if weak {
+            if let Some(ref tx) = event_tx {
+                let _ = tx.send(AgentEvent::Caveat(crate::WEAK_EVIDENCE_WARNING.to_string()));
+            }
+        }
+
+        // --------------------------------------------------------------------
         // PHASE 3: Grounded Synthesis with Provenance
         // --------------------------------------------------------------------
         let summary_prompt = self
@@ -516,10 +559,12 @@ impl DeepSearchOrchestrator {
             });
         }
 
-        // The session history keeps the answer only; the returned text ends with the warning.
+        // The session history keeps the answer only; the returned text starts with the
+        // weak-evidence warning and ends with the notice, when there are.
+        let content = crate::with_caveat(clean_final_answer, weak);
         let content = match notice {
-            Some(n) => format!("{clean_final_answer}\n\n{n}"),
-            None => clean_final_answer,
+            Some(n) => format!("{content}\n\n{n}"),
+            None => content,
         };
 
         Ok(AgentResponse {
@@ -529,6 +574,46 @@ impl DeepSearchOrchestrator {
             finish_reason: final_reason.or(Some(FinishReason::Stop)),
             execution_time_ms: start_time.elapsed().as_millis() as u64,
         })
+    }
+}
+
+impl DeepSearchOrchestrator {
+    /// Gives the nothing-found message as the answer: streamed as one delta, stored in the
+    /// session like an answer, no synthesis call.
+    #[allow(clippy::too_many_arguments)]
+    async fn finish_without_synthesis(
+        &self,
+        message: String,
+        input: &str,
+        session_id: Option<&str>,
+        event_tx: Option<&EventSender>,
+        notice: Option<String>,
+        total_turns: usize,
+        start_time: Instant,
+    ) -> AgentResponse {
+        if let Some(tx) = event_tx {
+            let _ = tx.send(AgentEvent::Delta(message.clone()));
+            if let Some(ref n) = notice {
+                let _ = tx.send(AgentEvent::Notice(n.clone()));
+            }
+            let _ = tx.send(AgentEvent::Done { total_turns, total_tokens: Some(0) });
+        }
+        if let (Some(sid), Some(ref store)) = (session_id, &self.session_store) {
+            let _ = store
+                .append_messages(sid, &[ChatMessage::user(input), ChatMessage::assistant(&message)])
+                .await;
+        }
+        let content = match notice {
+            Some(n) => format!("{message}\n\n{n}"),
+            None => message,
+        };
+        AgentResponse {
+            content,
+            total_turns,
+            tool_calls_count: 0,
+            finish_reason: Some(FinishReason::Stop),
+            execution_time_ms: start_time.elapsed().as_millis() as u64,
+        }
     }
 }
 

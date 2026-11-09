@@ -37,6 +37,9 @@ pub struct Outcome {
     /// Chunks and estimated tokens the delivered pass selected (IMP-045).
     pub delivered_chunks: usize,
     pub delivered_tokens: usize,
+    /// Every delivered chunk is in the maybe band: the answer gets the weak-evidence warning
+    /// (IMP-046).
+    pub delivered_weak: bool,
     pub latency_ms: f64,
 }
 
@@ -63,6 +66,9 @@ pub struct QuestionResult {
     pub delivered_chunks: usize,
     #[serde(default)]
     pub delivered_tokens: usize,
+    /// The delivered pass would answer with the weak-evidence warning (IMP-046).
+    #[serde(default)]
+    pub weak_evidence: bool,
 }
 
 impl QuestionResult {
@@ -99,6 +105,12 @@ pub struct Metrics {
     pub delivered_chunks_mean: f64,
     #[serde(default)]
     pub delivered_tokens_mean: f64,
+    /// Negatives and positives the delivered pass would answer with the weak-evidence warning
+    /// (IMP-046); reported, not gated.
+    #[serde(default)]
+    pub weak_evidence_rate: f64,
+    #[serde(default)]
+    pub positive_weak_evidence_rate: f64,
     pub positives: usize,
     pub negatives: usize,
 }
@@ -189,6 +201,7 @@ pub fn score(outcome: &Outcome) -> QuestionResult {
         ranked: top.into_iter().map(|d| RankedDoc { doc: d.doc.clone(), score: round4(d.score) }).collect(),
         delivered_chunks: outcome.delivered_chunks,
         delivered_tokens: outcome.delivered_tokens,
+        weak_evidence: outcome.delivered_weak,
     }
 }
 
@@ -228,6 +241,8 @@ fn metrics(results: &[&QuestionResult]) -> Metrics {
         false_nothing_found_rate: rate(positives.iter().filter(|r| r.nothing_found).count(), positives.len()),
         delivered_chunks_mean: mean(results.iter().map(|r| r.delivered_chunks as f64).sum(), results.len()),
         delivered_tokens_mean: mean(results.iter().map(|r| r.delivered_tokens as f64).sum(), results.len()),
+        weak_evidence_rate: rate(negatives.iter().filter(|r| r.weak_evidence).count(), negatives.len()),
+        positive_weak_evidence_rate: rate(positives.iter().filter(|r| r.weak_evidence).count(), positives.len()),
         positives: positives.len(),
         negatives: negatives.len(),
     }
@@ -378,6 +393,26 @@ mod tests {
         assert_eq!(m.nothing_found_rate, 0.5);
         assert_eq!(m.false_nothing_found_rate, 0.0);
         assert!(!results[2].delivered_hit && results[2].first_relevant_rank.is_none());
+    }
+
+    #[test]
+    fn weak_evidence_rates_count_negatives_and_positives_apart() {
+        let mut weak_negative = negative("n1", &["a"]);
+        weak_negative.delivered_weak = true;
+        let mut weak_positive = positive("p1", &[("a", 3)], &["a"]);
+        weak_positive.delivered_weak = true;
+        let results = vec![
+            score(&weak_negative),
+            score(&negative("n2", &[])),
+            score(&weak_positive),
+            score(&positive("p2", &[("a", 3)], &["a"])),
+            score(&positive("p3", &[("a", 3)], &["a"])),
+            score(&positive("p4", &[("a", 3)], &["a"])),
+        ];
+        assert!(results[0].weak_evidence && !results[1].weak_evidence);
+        let m = aggregate(&results).overall;
+        assert_eq!(m.weak_evidence_rate, 0.5);
+        assert_eq!(m.positive_weak_evidence_rate, 0.25);
     }
 
     #[test]

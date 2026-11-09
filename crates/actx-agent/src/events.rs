@@ -55,6 +55,16 @@ pub enum AgentEvent {
         missing_aspects: Vec<String>,
     },
 
+    /// Automatic mode moved the question from Fast to Deep Search: the quick search found no
+    /// relevant excerpt (IMP-046). Sent before the Deep Search events.
+    Escalation {
+        reason: String,
+    },
+
+    /// Warning shown before the answer, e.g. weak evidence (IMP-046). Sent at most once, before
+    /// the first `Delta`; the session history keeps the answer without it.
+    Caveat(String),
+
     /// One discreet warning line shown at the end of the answer, e.g. when the search ran
     /// without the dense retriever (IMP-040). Sent at most once, before `Done`.
     Notice(String),
