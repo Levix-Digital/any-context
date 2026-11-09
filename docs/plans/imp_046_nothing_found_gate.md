@@ -3,10 +3,10 @@ plan_id: imp_046_nothing_found_gate
 project: any-context
 title: Nothing-found and weak-evidence gate by relevance bands
 version: v1.0.0
-status: in_progress
+status: completed
 author: LeviGuilherme
 created_at: '2026-11-09T16:45:55'
-updated_at: '2026-11-09T17:27:45'
+updated_at: '2026-11-09T17:49:28'
 session_id: null
 tags:
 - retrieval
@@ -27,7 +27,9 @@ milestones:
   done_at: '2026-11-09'
   by: LeviGuilherme
 - name: M3 Docs and checks
-  done: false
+  done: true
+  done_at: '2026-11-09'
+  by: LeviGuilherme
 status_log:
 - at: '2026-11-09T16:45:55'
   by: LeviGuilherme
@@ -39,6 +41,13 @@ status_log:
 - at: '2026-11-09T17:27:45'
   by: LeviGuilherme
   note: 'Milestone ''M2 Benchmark'' completed: PR #403'
+- at: '2026-11-09T17:49:28'
+  by: LeviGuilherme
+  note: 'Milestone ''M3 Docs and checks'' completed: PR #403, CI green (both benchmarks, cargo test)'
+- at: '2026-11-09T17:49:28'
+  by: LeviGuilherme
+  status: completed
+  note: All milestones completed
 ---
 
 # Nothing-found and weak-evidence gate by relevance bands

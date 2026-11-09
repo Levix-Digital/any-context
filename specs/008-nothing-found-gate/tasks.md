@@ -28,4 +28,4 @@ Format: `[ID] [P?] [Story] Description`. `[P]` = can run in parallel (different 
 - [x] T008 [P] ADR-0160; `docs/architecture/retrieval.md` and `agent.md`; README `/search auto`
 - [x] T009 [P] `tests/MANUAL_TESTS.md`: nothing found in Fast, escalation in automatic mode, weak-evidence warning
 - [x] T010 Backlog: close IMP-046; `@source` suggestion added to FEAT-088's description
-- [ ] T011 `cargo test` per crate, `check_docs`, `manual_tests validate`, `check_design`; plan completed after CI
+- [x] T011 `cargo test` per crate, `check_docs`, `manual_tests validate`, `check_design`; plan completed after CI
