@@ -415,6 +415,7 @@ impl DeterministicRetriever for RecordingRetriever {
             formatted_prompt: format!("{} prompt for {}", self.label, query),
             chunk_count: 1,
             notice: None,
+            evidence: Evidence::Sufficient,
         })
     }
 }
@@ -522,6 +523,7 @@ impl DeterministicRetriever for NoticeRetriever {
                 formatted_prompt: format!("prompt for {query}"),
                 chunk_count: 1,
                 notice: self.notice.clone(),
+                evidence: Evidence::Sufficient,
             }
         })
     }

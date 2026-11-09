@@ -1298,6 +1298,19 @@ impl App {
                     self.current_thinking_buffer.push_str(&format!("🔎 [Gap Analysis - Missing Aspects]: {}\n\n", missing_aspects.join(", ")));
                 }
             }
+            AgentEvent::Escalation { reason } => {
+                self.status = AppStatus::Thinking;
+                self.current_thinking_buffer.push_str(&format!("↗ [Escalated to Deep Search]: {}\n\n", reason));
+            }
+            AgentEvent::Caveat(text) => {
+                // Shown before the answer as a system line, kept out of the answer itself (IMP-046).
+                self.chat_history.push(ChatMessageItem {
+                    role: MessageRole::System,
+                    content: format!("⚠ {text}"),
+                    thinking: None,
+                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                });
+            }
             AgentEvent::Delta(token) => {
                 self.status = AppStatus::Streaming;
                 self.current_stream_buffer.push_str(&token);
@@ -1407,5 +1420,26 @@ mod tests {
             AgentEvent::Done { total_turns: 0, total_tokens: None },
         ]);
         assert!(shown.iter().all(|(_, c)| !c.contains("keyword search only")), "{shown:?}");
+    }
+
+    #[test]
+    fn weak_evidence_warning_is_shown_before_the_answer() {
+        let shown = answered(vec![
+            AgentEvent::Caveat("Weak evidence: x.".to_string()),
+            AgentEvent::Delta("The answer.".to_string()),
+            AgentEvent::Done { total_turns: 1, total_tokens: None },
+        ]);
+        assert_eq!(shown, vec![
+            (MessageRole::System, "⚠ Weak evidence: x.".to_string()),
+            (MessageRole::Assistant, "The answer.".to_string()),
+        ]);
+    }
+
+    #[test]
+    fn escalation_goes_to_the_thinking_area_not_the_answer() {
+        let mut app = App::new("W".to_string(), "test-model".to_string(), None);
+        app.handle_agent_event(AgentEvent::Escalation { reason: "no excerpt found by the quick search".to_string() });
+        assert!(app.current_thinking_buffer.contains("↗ [Escalated to Deep Search]: no excerpt found by the quick search"));
+        assert!(app.current_stream_buffer.is_empty());
     }
 }

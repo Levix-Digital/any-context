@@ -13,6 +13,7 @@ pub mod requests;
 pub mod filter;
 pub mod web_search;
 pub mod prompt;
+pub mod gate;
 
 pub use tokenizer::tokenize;
 pub use bm25::{BM25Index, DocRecord, Posting};
@@ -29,3 +30,4 @@ pub use requests::{deep_request, fast_request, tool_request, CANDIDATES_PER_LIST
 pub use filter::RetrievalFilter;
 pub use web_search::{NativeWebSearchEngine, WebSearchResult, NO_SEARCH_PROVIDER};
 pub use prompt::{CanonicalSynthesisFormatter, ContextFormatter};
+pub use gate::{classify_evidence, nothing_found_message, EvidenceClass, WEAK_EVIDENCE_RULE, WEAK_EVIDENCE_WARNING};

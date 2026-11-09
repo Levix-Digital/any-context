@@ -14,7 +14,7 @@ use any_context_core_rs::ingestion::{
     OnnxModelManager, OnnxModelSpec, SyncOptions, DEFAULT_RERANKER_ID,
 };
 use any_context_core_rs::hardware::ProfileTier;
-use any_context_core_rs::retrieval::{fast_request, HybridSearchRequest, HybridSearchResult, NativeHybridPipeline, RerankOutcome};
+use any_context_core_rs::retrieval::{classify_evidence, fast_request, EvidenceClass, HybridSearchRequest, HybridSearchResult, NativeHybridPipeline, RerankOutcome};
 use any_context_core_rs::storage::{NativeConfigDb, NativeLanceStore};
 
 use crate::corpus::{hash_bytes, normalize_whitespace, Corpus};
@@ -348,6 +348,7 @@ async fn ask(pipeline: &Passes, corpus: &Corpus, q: &Question) -> Result<Outcome
         delivered: ranked_docs(corpus, &delivered).into_iter().map(|d| d.doc).collect(),
         delivered_chunks: delivered.len(),
         delivered_tokens: delivered.iter().map(|c| c.token_count).sum(),
+        delivered_weak: classify_evidence(&delivered) == EvidenceClass::Weak,
         latency_ms,
     })
 }

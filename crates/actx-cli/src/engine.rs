@@ -4,7 +4,7 @@ use actx_lm::providers::ProviderKind;
 use actx_lm::traits::LmProvider;
 use any_context_core_rs::storage::NativeConfigDb;
 use any_context_core_rs::ingestion::EmbeddingTarget;
-use any_context_core_rs::retrieval::ContextFormatter;
+use any_context_core_rs::retrieval::{classify_evidence, nothing_found_message, ContextFormatter, EvidenceClass};
 
 /// Provider and model chosen by `resolve_lm_provider`.
 pub struct ResolvedLm {
@@ -267,16 +267,7 @@ pub fn build_agent_sync(
                             .and_then(|d| d.get_workspace_web_urls(&ws).ok())
                             .unwrap_or_default();
 
-                        let zero_eval = ContextFormatter::evaluate_zero_hallucination(
-                            &[],
-                            &ws,
-                            &folders,
-                            &web_urls,
-                            query,
-                        );
-                        Ok(zero_eval.unwrap_or_else(|| {
-                            format!("No indexed document chunks found in workspace '{}' for query '{}'.", ws, query)
-                        }))
+                        Ok(any_context_core_rs::retrieval::nothing_found_message(&ws, &folders, &web_urls, query))
                     }
                     Err(e) => {
                         Ok(format!("Search query returned 0 results: {e}"))
@@ -791,6 +782,7 @@ impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
                         matched_queries: r.matched_subqueries,
                         content_type: r.content_type,
                         last_modified: r.last_modified,
+                        weak: r.relevance_band == Some(any_context_core_rs::retrieval::RelevanceBand::Maybe),
                     })
                     .collect();
                 Ok(chunks)
@@ -802,6 +794,18 @@ impl actx_agent::DeepSearchRetriever for PipelineBatchRetriever {
     fn last_notice(&self) -> Option<String> {
         self.last_notice.lock().ok().and_then(|n| n.clone())
     }
+
+    fn nothing_found_message(&self, query: &str) -> String {
+        workspace_nothing_found_message(&self.workspace, query)
+    }
+}
+
+/// The nothing-found answer with the workspace's monitored sources, read only when needed.
+fn workspace_nothing_found_message(workspace: &str, query: &str) -> String {
+    let db = NativeConfigDb::open_default().ok();
+    let folders = db.as_ref().and_then(|d| d.get_workspace_folders(workspace).ok()).unwrap_or_default();
+    let web_urls = db.as_ref().and_then(|d| d.get_workspace_web_urls(workspace).ok()).unwrap_or_default();
+    nothing_found_message(workspace, &folders, &web_urls, query)
 }
 
 /// Live status of a workspace: sync state from SQLite, chunk count from LanceDB and monitored sources.
@@ -891,23 +895,16 @@ impl actx_agent::DeterministicRetriever for PipelineDeterministicRetriever {
         let notice = output.notices();
         let results = output.results;
 
-        let db = NativeConfigDb::open_default().ok();
-        let folders = db.as_ref()
-            .and_then(|d| d.get_workspace_folders(&self.workspace).ok())
-            .unwrap_or_default();
-        let web_urls = db.as_ref()
-            .and_then(|d| d.get_workspace_web_urls(&self.workspace).ok())
-            .unwrap_or_default();
-
-        if let Some(zero_msg) = ContextFormatter::evaluate_zero_hallucination(
-            &results,
-            &self.workspace,
-            &folders,
-            &web_urls,
-            query,
-        ) {
-            return Ok(actx_agent::DeterministicRetrievalOutput::ZeroContext { message: zero_msg, notice });
-        }
+        // The gate reads the reranker bands (IMP-046): nothing found answers without the LLM, and
+        // an answer made only of maybe-band excerpts gets the weak-evidence warning.
+        let evidence = match classify_evidence(&results) {
+            EvidenceClass::Nothing => {
+                let message = workspace_nothing_found_message(&self.workspace, query);
+                return Ok(actx_agent::DeterministicRetrievalOutput::ZeroContext { message, notice });
+            }
+            EvidenceClass::Weak => actx_agent::Evidence::Weak,
+            EvidenceClass::Sufficient => actx_agent::Evidence::Sufficient,
+        };
 
         let chunk_count = results.len();
         let formatted_prompt = ContextFormatter::format_deterministic_prompt(
@@ -921,12 +918,13 @@ impl actx_agent::DeterministicRetriever for PipelineDeterministicRetriever {
             formatted_prompt,
             chunk_count,
             notice,
+            evidence,
         })
     }
 }
 
 /// 1-hop retriever for live status questions: the same hybrid search plus the live status report.
-/// The Zero Hallucination Gate is skipped because the report is always context.
+/// The nothing-found and weak-evidence gate is skipped because the report is always context.
 struct PipelineStatusRetriever {
     inner: Arc<PipelineDeterministicRetriever>,
 }
@@ -956,10 +954,12 @@ impl actx_agent::DeterministicRetriever for PipelineStatusRetriever {
             &report,
         );
 
+        // The live status report is always context: no gate (ADR-0145).
         Ok(actx_agent::DeterministicRetrievalOutput::ContextReady {
             formatted_prompt,
             chunk_count: results.len(),
             notice,
+            evidence: actx_agent::Evidence::Sufficient,
         })
     }
 }

@@ -427,7 +427,7 @@ How to record a run: in each test of the current run, mark exactly one box of th
 
 ### MT-ANS-001: Strict grounding answers only from documents and says when nothing is found
 
-- **Covers**: grounding modes, Zero Hallucination Gate
+- **Covers**: grounding modes, nothing-found answer
 - **Prerequisites**: an indexed workspace in strict mode
 - **Steps**:
   1. Ask something the documents answer.
@@ -435,7 +435,7 @@ How to record a run: in each test of the current run, mark exactly one box of th
   3. Repeat question 2 with `/mode hybrid`.
 - **Expected**:
   - Answer 1 cites the source files at the end.
-  - Answer 2 is an English "No information or documents matching the query ..." message listing the workspace's sources and suggesting `/folder`, `/web-search on` or rephrasing, with no invented content.
+  - Answer 2 is an English "Nothing relevant to ... was found in the workspace ..." message listing the workspace's sources and suggesting rephrasing or adding sources with `/folder` or `/web`, with no invented content.
   - In hybrid mode, workspace facts come first and general knowledge is clearly labeled.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
@@ -615,6 +615,23 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Expected**:
   - Step 1: the answer lists more than three rules from the same file (no per-file limit), and no rule appears twice because of the copy.
   - Step 2: the answer gives the limit from rule 5; no quoted excerpt ends with "[...additional snippet condensed for density limit...]".
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
+### MT-ANS-014: Nothing found answers at once, weak evidence is said first, and automatic mode escalates
+
+- **Covers**: nothing-found and weak-evidence gate by relevance bands, Fast-to-Deep escalation in automatic mode
+- **Prerequisites**: the re-ranker installed; a workspace with the travel policy file of MT-ANS-013 and nothing else, in strict mode
+- **Steps**:
+  1. Ask: "/fast What is the boiling point of mercury?"
+  2. With `/search auto`, ask the same short question without `/fast`, with the reasoning panel open (`Ctrl+T`).
+  3. Ask: "/fast Are meals with clients covered when the trip is cancelled?" (a question the policy only touches loosely).
+  4. Run `/history`.
+- **Expected**:
+  - Step 1: the "Nothing relevant to ... was found in the workspace ..." message appears at once, with the workspace's sources and the suggestions; no answer is streamed from the model.
+  - Step 2: the panel shows `↗ [Escalated to Deep Search]` with a reason, then the Deep Search sub-questions, and the answer is the same nothing-found message (no synthesized answer).
+  - Step 3: if the answer starts with the `⚠ Weak evidence: ...` line, the answer below it says what the policy does not cover; if the policy has a clearly relevant rule, no warning is shown.
+  - Step 4: the stored answers do not contain the weak-evidence line.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 

@@ -3,10 +3,12 @@
 //! Implements strict Hexagonal Architecture for RAG prompt generation:
 //! - U-Shaped Reordering to eliminate the "Lost in the Middle" Transformer attention degradation.
 //! - XML Tag Boundaries (<chunk id="..." source="..." version="...">) preventing cross-attention fusion.
-//! - Zero Hallucination Gate providing instant (<5ms / $0.00) calibrated negative responses when context is absent.
+//! - No answer prompt when nothing is found: the gate in `gate.rs` answers without the LLM (IMP-046).
 //! - Unified canonical formatting for Deterministic 1-Hop RAG, agentic tool results and the Deep Search synthesis.
 
+use crate::retrieval::gate::{classify_evidence, EvidenceClass, WEAK_EVIDENCE_RULE};
 use crate::retrieval::pipeline::{compare_by_relevance, HybridSearchResult};
+use crate::retrieval::relevance::RelevanceBand;
 use crate::retrieval::token_budget::estimate_token_count;
 use actx_agent::prompt_safety::{escape_xml_attr, neutralize_reserved_tags};
 use regex::Regex;
@@ -16,6 +18,15 @@ use std::sync::OnceLock;
 fn version_token_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| Regex::new(r"^v\d+(?:\.\d+)*$").unwrap())
+}
+
+/// The weak-evidence rule, after a blank line, when every chunk is in the maybe band (IMP-046).
+fn weak_evidence_rule(chunks: &[HybridSearchResult]) -> String {
+    if classify_evidence(chunks) == EvidenceClass::Weak {
+        format!("\n\n{WEAK_EVIDENCE_RULE}")
+    } else {
+        String::new()
+    }
 }
 
 /// Isolation rules shared by every prompt that answers from `<retrieved_context>`.
@@ -223,7 +234,7 @@ impl ContextFormatter {
 r#"<system_instructions>
 {}
 
-{}
+{}{}
 </system_instructions>
 
 {}
@@ -233,6 +244,7 @@ r#"<system_instructions>
 </user_query>"#,
             system_prompt.trim(),
             isolation_rules(workspace),
+            weak_evidence_rule(chunks),
             xml_context,
             neutralize_reserved_tags(query.trim())
         )
@@ -296,7 +308,7 @@ r#"<system_instructions>
 
 {}
 
-{}
+{}{}
 </system_instructions>
 
 {}
@@ -307,6 +319,7 @@ r#"<system_instructions>
             system_prompt.trim(),
             isolation_rules(workspace),
             DEEP_SEARCH_SYNTHESIS_RULES,
+            weak_evidence_rule(chunks),
             xml_context,
             neutralize_reserved_tags(query.trim())
         )
@@ -331,48 +344,6 @@ r#"<tool_result name="search_db">
             xml_context,
             neutralize_reserved_tags(query.trim())
         )
-    }
-
-    /// Zero Hallucination Gate: Evaluates if retrieval returned viable chunks.
-    /// If no chunks are found or scores are completely negligible, returns a calibrated,
-    /// honest negative response without making unnecessary LLM calls.
-    pub fn evaluate_zero_hallucination(
-        chunks: &[HybridSearchResult],
-        workspace: &str,
-        monitored_folders: &[String],
-        monitored_urls: &[String],
-        query: &str,
-    ) -> Option<String> {
-        let has_viable_chunks = !chunks.is_empty() && chunks.iter().any(|c| c.score >= 0.005);
-
-        if has_viable_chunks {
-            return None;
-        }
-
-        let mut sources_desc = Vec::new();
-        if !monitored_folders.is_empty() {
-            sources_desc.push(format!("local folders: [{}]", monitored_folders.join(", ")));
-        }
-        if !monitored_urls.is_empty() {
-            sources_desc.push(format!("web sources: [{}]", monitored_urls.join(", ")));
-        }
-
-        let monitored_summary = if !sources_desc.is_empty() {
-            format!(" The workspace monitors {}.", sources_desc.join(" and "))
-        } else {
-            String::new()
-        };
-
-        Some(format!(
-            "No information or documents matching the query '{}' were found in the workspace '{}'.{}\n\n\
-            💡 Suggestions:\n\
-            • Index more folders or files with `/folder <path>` or `actx --sync`.\n\
-            • Turn on web search with `/web-search on` to consult external sources.\n\
-            • Try rephrasing the question with other terms or file names.",
-            query.trim(),
-            workspace,
-            monitored_summary
-        ))
     }
 }
 
@@ -412,7 +383,8 @@ impl actx_agent::SynthesisPromptFormatter for CanonicalSynthesisFormatter {
                 header_path: c.header_path.clone(),
                 start_line: c.start_line.and_then(|l| u32::try_from(l).ok()),
                 end_line: c.end_line.and_then(|l| u32::try_from(l).ok()),
-                relevance_band: None,
+                // The batch retriever marks maybe-band chunks as weak (IMP-046).
+                relevance_band: c.weak.then_some(RelevanceBand::Maybe),
             })
             .collect();
         ContextFormatter::format_deep_search_prompt(&results, query, &self.system_prompt, &self.workspace)
@@ -812,26 +784,33 @@ STRICT CONTEXT ISOLATION RULES (ANTI-HALLUCINATION):\n\
         assert!(!payload.contains("scope"));
     }
 
+    fn banded(id: &str, band: Option<RelevanceBand>) -> HybridSearchResult {
+        HybridSearchResult { relevance_band: band, ..dummy_chunk(id, 0.5, "text") }
+    }
+
     #[test]
-    fn test_evaluate_zero_hallucination() {
-        let folders = vec!["C:\\docs".to_string()];
-        let urls = vec![];
+    fn the_weak_evidence_rule_enters_only_when_every_chunk_is_maybe() {
+        let weak = vec![banded("a", Some(RelevanceBand::Maybe)), banded("b", Some(RelevanceBand::Maybe))];
+        let mixed = vec![banded("a", Some(RelevanceBand::Maybe)), banded("b", Some(RelevanceBand::Relevant))];
+        let unbanded = vec![banded("a", None)];
 
-        // 1. Empty chunks
-        let res1 = ContextFormatter::evaluate_zero_hallucination(&[], "Finance", &folders, &urls, "qual o saldo?");
-        assert!(res1.is_some());
-        let msg = res1.unwrap();
-        assert!(msg.contains("Finance"));
-        assert!(msg.contains("C:\\docs"));
+        assert!(ContextFormatter::format_deterministic_prompt(&weak, "q", "sys", "Work").contains(WEAK_EVIDENCE_RULE));
+        assert!(ContextFormatter::format_deep_search_prompt(&weak, "q", "sys", "Work").contains(WEAK_EVIDENCE_RULE));
+        for chunks in [&mixed, &unbanded] {
+            assert!(!ContextFormatter::format_deterministic_prompt(chunks, "q", "sys", "Work").contains(WEAK_EVIDENCE_RULE));
+            assert!(!ContextFormatter::format_deep_search_prompt(chunks, "q", "sys", "Work").contains(WEAK_EVIDENCE_RULE));
+        }
+        let rule_at = ContextFormatter::format_deterministic_prompt(&weak, "q", "sys", "Work").find(WEAK_EVIDENCE_RULE).unwrap();
+        let instructions_end = ContextFormatter::format_deterministic_prompt(&weak, "q", "sys", "Work").find("</system_instructions>").unwrap();
+        assert!(rule_at < instructions_end, "the rule is part of the system instructions");
+    }
 
-        // 2. Chunks below minimum score threshold
-        let low_score_chunks = vec![dummy_chunk("chk_0", 0.001, "Irrelevant junk")];
-        let res2 = ContextFormatter::evaluate_zero_hallucination(&low_score_chunks, "Finance", &folders, &urls, "qual o saldo?");
-        assert!(res2.is_some());
-
-        // 3. Viable chunk
-        let good_chunks = vec![dummy_chunk("chk_1", 0.85, "Saldo disponível")];
-        let res3 = ContextFormatter::evaluate_zero_hallucination(&good_chunks, "Finance", &folders, &urls, "qual o saldo?");
-        assert!(res3.is_none());
+    #[test]
+    fn the_synthesis_formatter_reads_weak_chunks_as_the_maybe_band() {
+        use actx_agent::SynthesisPromptFormatter;
+        let formatter = CanonicalSynthesisFormatter::new("sys", "Work");
+        let chunk = |weak| actx_agent::RetrievedChunk { id: "c".into(), text: "t".into(), weak, ..Default::default() };
+        assert!(formatter.format_synthesis_prompt(&[chunk(true)], "q").contains(WEAK_EVIDENCE_RULE));
+        assert!(!formatter.format_synthesis_prompt(&[chunk(true), chunk(false)], "q").contains(WEAK_EVIDENCE_RULE));
     }
 }

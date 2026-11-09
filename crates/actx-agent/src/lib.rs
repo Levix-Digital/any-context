@@ -16,7 +16,7 @@ pub mod tool;
 
 pub use config::{AgentConfig, AgentExecutionMode, SearchMode};
 pub use deep_search::{
-    DeepSearchConfig, DeepSearchOrchestrator, DeepSearchRetriever, DefaultSynthesisFormatter,
+    evidence_of, DeepSearchConfig, DeepSearchOrchestrator, DeepSearchRetriever, DefaultSynthesisFormatter,
     RetrievedChunk, SynthesisPromptFormatter, clean_llm_response, parse_string_list,
 };
 pub use error::{AgentError, ToolError};
@@ -43,6 +43,19 @@ pub trait DeterministicRetriever: Send + Sync {
     async fn retrieve_and_format(&self, query: &str) -> Result<DeterministicRetrievalOutput, AgentError>;
 }
 
+/// Warning placed before an answer whose excerpts are all in the reranker's maybe band
+/// (IMP-046). Kept out of the session history.
+pub const WEAK_EVIDENCE_WARNING: &str = "Weak evidence: no excerpt in the workspace clearly answers this question. The answer below relies on passages that are only possibly related; check the cited sources.";
+
+/// What the retrieved context can support, read from the reranker bands (IMP-046).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Evidence {
+    /// A relevant excerpt, a pinned file-name match, or excerpts the reranker did not band.
+    Sufficient,
+    /// Every excerpt is in the maybe band: the answer starts with `WEAK_EVIDENCE_WARNING`.
+    Weak,
+}
+
 /// Output from a deterministic retrieval evaluation.
 #[derive(Debug, Clone)]
 pub enum DeterministicRetrievalOutput {
@@ -52,8 +65,9 @@ pub enum DeterministicRetrievalOutput {
         chunk_count: usize,
         /// Warning line for the end of the answer (e.g. keyword search only, IMP-040).
         notice: Option<String>,
+        evidence: Evidence,
     },
-    /// Zero chunks or below threshold; provides an honest negative response without LLM calls ($0.00 / 0 turns).
+    /// Nothing was found: an honest negative response given without an LLM call (IMP-046).
     ZeroContext {
         message: String,
         notice: Option<String>,
@@ -65,6 +79,27 @@ fn with_notice(content: String, notice: Option<&str>) -> String {
     match notice {
         Some(n) => format!("{content}\n\n{n}"),
         None => content,
+    }
+}
+
+/// Answer text preceded by the weak-evidence warning when the evidence is weak.
+pub(crate) fn with_caveat(content: String, weak: bool) -> String {
+    if weak {
+        format!("{WEAK_EVIDENCE_WARNING}\n\n{content}")
+    } else {
+        content
+    }
+}
+
+/// Why an automatic Fast retrieval moves to Deep Search, or `None` when it answers (IMP-046):
+/// nothing found, or only maybe-band excerpts.
+fn escalation_reason(output: &DeterministicRetrievalOutput) -> Option<&'static str> {
+    match output {
+        DeterministicRetrievalOutput::ZeroContext { .. } => Some("no excerpt found by the quick search"),
+        DeterministicRetrievalOutput::ContextReady { evidence: Evidence::Weak, .. } => {
+            Some("the quick search found only possibly related excerpts")
+        }
+        DeterministicRetrievalOutput::ContextReady { .. } => None,
     }
 }
 
@@ -154,9 +189,22 @@ impl Agent {
                 return dso.run(input, session_id, None).await;
             }
         } else if let Some(retriever) = self.fast_route(&decision) {
-            return self.run_one_hop(retriever, input, session_id).await;
+            let output = retriever.retrieve_and_format(input).await?;
+            if let (Some(dso), Some(_)) = (self.escalation_target(), escalation_reason(&output)) {
+                return dso.run(input, session_id, None).await;
+            }
+            return self.answer_one_hop(output, input, session_id).await;
         }
         self.orchestrator.run(input, session_id, None).await
+    }
+
+    /// The Deep Search engine a Fast route escalates to: only in automatic mode (IMP-046).
+    fn escalation_target(&self) -> Option<Arc<DeepSearchOrchestrator>> {
+        if self.search_mode == SearchMode::Auto {
+            self.deep_search_orchestrator.clone()
+        } else {
+            None
+        }
     }
 
     /// The status retriever, when the question asks for the live status; it overrides the search mode.
@@ -187,8 +235,20 @@ impl Agent {
         input: &str,
         session_id: Option<&str>,
     ) -> Result<AgentResponse, AgentError> {
+        let output = retriever.retrieve_and_format(input).await?;
+        self.answer_one_hop(output, input, session_id).await
+    }
+
+    /// Answers from a one-hop retrieval: the nothing-found message without a model call, or one
+    /// model call, preceded by the weak-evidence warning when the evidence is weak.
+    async fn answer_one_hop(
+        &self,
+        output: DeterministicRetrievalOutput,
+        input: &str,
+        session_id: Option<&str>,
+    ) -> Result<AgentResponse, AgentError> {
         let start_time = Instant::now();
-        match retriever.retrieve_and_format(input).await? {
+        match output {
             DeterministicRetrievalOutput::ZeroContext { message, notice } => {
                 if let (Some(sid), Some(store)) = (session_id, self.orchestrator.session_store()) {
                     let _ = store.append_messages(sid, &[
@@ -204,7 +264,7 @@ impl Agent {
                     execution_time_ms: start_time.elapsed().as_millis() as u64,
                 })
             }
-            DeterministicRetrievalOutput::ContextReady { formatted_prompt, chunk_count: _, notice } => {
+            DeterministicRetrievalOutput::ContextReady { formatted_prompt, chunk_count: _, notice, evidence } => {
                 let mut messages = Vec::new();
                 if let (Some(sid), Some(store)) = (session_id, self.orchestrator.session_store()) {
                     let prior = store.get_messages(sid).await.unwrap_or_default();
@@ -229,7 +289,7 @@ impl Agent {
                 }
 
                 Ok(AgentResponse {
-                    content: with_notice(content, notice.as_deref()),
+                    content: with_notice(with_caveat(content, evidence == Evidence::Weak), notice.as_deref()),
                     tool_calls_count: 0,
                     total_turns: 1,
                     finish_reason: res.finish_reason,
@@ -259,7 +319,7 @@ impl Agent {
         });
 
         if let Some(retriever) = self.status_route(&decision) {
-            return (rx, self.stream_one_hop(retriever, inp, session_id, tx));
+            return (rx, self.stream_one_hop(retriever, inp, session_id, tx, None));
         }
 
         if decision.mode == AgentExecutionMode::DeepSearch && self.deep_search_orchestrator.is_some() {
@@ -275,7 +335,8 @@ impl Agent {
         }
 
         if let Some(retriever) = self.fast_route(&decision) {
-            return (rx, self.stream_one_hop(retriever, inp, session_id, tx));
+            let escalation = self.escalation_target();
+            return (rx, self.stream_one_hop(retriever, inp, session_id, tx, escalation));
         }
 
         let orch = self.orchestrator.clone();
@@ -289,12 +350,15 @@ impl Agent {
     }
 
     /// One-hop RAG streamed as events: one retrieval, then at most one streamed model call.
+    /// With an `escalation` engine (automatic mode), nothing found or weak evidence moves the
+    /// question to Deep Search after an `Escalation` event (IMP-046).
     fn stream_one_hop(
         &self,
         retriever: Arc<dyn DeterministicRetriever>,
         inp: String,
         session_id: Option<String>,
         tx: EventSender,
+        escalation: Option<Arc<DeepSearchOrchestrator>>,
     ) -> tokio::task::JoinHandle<Result<AgentResponse, AgentError>> {
         let client = self.orchestrator.client().clone();
         let session_store = self.orchestrator.session_store().cloned();
@@ -302,7 +366,18 @@ impl Agent {
 
         tokio::spawn(async move {
             let start_time = Instant::now();
-            match retriever.retrieve_and_format(&inp).await {
+            let retrieved = retriever.retrieve_and_format(&inp).await;
+            if let (Some(dso), Ok(output)) = (escalation, retrieved.as_ref()) {
+                if let Some(reason) = escalation_reason(output) {
+                    let _ = tx.send(AgentEvent::Escalation { reason: reason.to_string() });
+                    let res = dso.run(&inp, session_id.as_deref(), Some(tx.clone())).await;
+                    if let Err(ref e) = res {
+                        let _ = tx.send(AgentEvent::Error(e.to_string()));
+                    }
+                    return res;
+                }
+            }
+            match retrieved {
                 Ok(DeterministicRetrievalOutput::ZeroContext { message, notice }) => {
                     let _ = tx.send(AgentEvent::Delta(message.clone()));
                     if let Some(notice) = notice {
@@ -326,7 +401,11 @@ impl Agent {
                         execution_time_ms: start_time.elapsed().as_millis() as u64,
                     })
                 }
-                Ok(DeterministicRetrievalOutput::ContextReady { formatted_prompt, chunk_count: _, notice }) => {
+                Ok(DeterministicRetrievalOutput::ContextReady { formatted_prompt, chunk_count: _, notice, evidence }) => {
+                    let weak = evidence == Evidence::Weak;
+                    if weak {
+                        let _ = tx.send(AgentEvent::Caveat(WEAK_EVIDENCE_WARNING.to_string()));
+                    }
                     let mut messages = Vec::new();
                     if let (Some(sid), Some(ref store)) = (session_id.as_deref(), session_store.as_ref()) {
                         let prior = store.get_messages(sid).await.unwrap_or_default();
@@ -377,7 +456,7 @@ impl Agent {
                             }
 
                             Ok(AgentResponse {
-                                content: response_content,
+                                content: with_caveat(response_content, weak),
                                 tool_calls_count: 0,
                                 total_turns: 1,
                                 finish_reason,

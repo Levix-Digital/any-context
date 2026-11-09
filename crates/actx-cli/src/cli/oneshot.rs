@@ -421,6 +421,20 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                 print!("{}", token);
                 let _ = stdout.flush();
             }
+            AgentEvent::Escalation { reason } => {
+                if in_thinking {
+                    print!("{}\x1b[2m</think>\x1b[0m\n\n", theme.core.text_muted.ansi_fg());
+                    in_thinking = false;
+                }
+                println!("{} \x1b[2m{}\x1b[0m\n", theme.ansi_reasoning("↗ [Escalated to Deep Search]"), reason);
+            }
+            AgentEvent::Caveat(text) => {
+                if in_thinking {
+                    print!("{}\x1b[2m</think>\x1b[0m\n\n", theme.core.text_muted.ansi_fg());
+                    in_thinking = false;
+                }
+                println!("{}\n", theme.ansi_warning(&format!("⚠ {text}")));
+            }
             AgentEvent::Notice(text) => {
                 notice = Some(text);
             }

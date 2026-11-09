@@ -22,10 +22,10 @@ Retrieval itself is in the [retrieval pipeline](retrieval.md); the concrete tool
 
 | Module | Role |
 |---|---|
-| `lib.rs` | `Agent`, `AgentBuilder`, `DeterministicRetriever`, `DeterministicRetrievalOutput`, `ToolBasedRetriever`; the shared one-hop execution (`run_one_hop`, `stream_one_hop`). |
+| `lib.rs` | `Agent`, `AgentBuilder`, `DeterministicRetriever`, `DeterministicRetrievalOutput`, `Evidence`, `WEAK_EVIDENCE_WARNING`, `ToolBasedRetriever`; the shared one-hop execution (`run_one_hop`, `answer_one_hop`, `stream_one_hop`) and the Fast-to-Deep escalation. |
 | `router.rs` | `ChatModelRouter`, `ComplexityClassifier`, `DeterministicClassifier`, `RoutingDecision`, `QueryComplexity`, `QueryIntent`, `is_status_query`. |
 | `fsm.rs` | `ReActOrchestrator`: the ReAct state machine. |
-| `deep_search.rs` | `DeepSearchOrchestrator`, `DeepSearchRetriever`, `DeepSearchConfig`, `RetrievedChunk`, `SynthesisPromptFormatter`, `DefaultSynthesisFormatter`, prompts, prompt builders and response parsers. |
+| `deep_search.rs` | `DeepSearchOrchestrator`, `DeepSearchRetriever`, `DeepSearchConfig`, `RetrievedChunk`, `evidence_of`, `SynthesisPromptFormatter`, `DefaultSynthesisFormatter`, prompts, prompt builders and response parsers. |
 | `prompt_safety.rs` | `RESERVED_PROMPT_TAGS`, `neutralize_reserved_tags`, `escape_xml_attr` and `fill_template`, shared with the [retrieval](retrieval.md) context formatter. |
 | `tool.rs` | `Tool`, `NativeTool`, `ToolRegistry` (behind `std::sync::RwLock`). |
 | `session.rs` | `SessionStore`, `SqliteSessionStore`, `InMemorySessionStore`. |
@@ -40,8 +40,10 @@ flowchart TD
     SR --> ONE
     R -->|Deep| DS[DeepSearchOrchestrator]
     R -->|Fast / Direct, retriever present| DR[DeterministicRetriever]
+    DR -->|Auto, nothing or weak evidence| E[Escalation event] --> DS
     DR -->|ZeroContext| Z[Honest not-found answer, no LLM call]
-    DR -->|ContextReady| ONE[One streamed LLM call]
+    DR -->|ContextReady| ONE[One streamed LLM call, warning first when weak]
+    DS -->|no chunk collected| Z
     R -->|otherwise| RE[ReActOrchestrator tool loop]
     DS & ONE & RE & Z --> S[(Session store)]
 ```
@@ -64,15 +66,16 @@ The classifier is a deterministic keyword and structure heuristic (query length,
 
 When a `DeterministicRetriever` is configured and the route is fast (or the mode is `Direct`), the agent:
 
-1. Calls `retrieve_and_format(query)`. The CLI's `PipelineDeterministicRetriever` runs one hybrid search and applies the Zero Hallucination Gate.
-2. On `ZeroContext { message }`, returns the message without calling the model.
-3. On `ContextReady { formatted_prompt }`, sends the prior session messages plus the formatted prompt (system rules, XML context and the query) in a single streamed model call.
-4. Persists only the user's original question and the final answer.
-5. When the output carries a `notice` (the search ran without the dense retriever), sends `AgentEvent::Notice` once, before `Done`; `run` appends it to the returned answer after a blank line. The persisted answer never contains it ([ADR-0155](../adr/0155-retrieval-filters-apply-inside-each-retriever-and-the-answer-says-when-dense-search-did-not-run.md)).
+1. Calls `retrieve_and_format(query)`. The CLI's `PipelineDeterministicRetriever` runs one hybrid search and applies the nothing-found and weak-evidence gate of the [retrieval](retrieval.md) pipeline ([ADR-0160](../adr/0160-the-answer-path-reads-the-evidence-from-the-reranker-bands.md)): `ZeroContext` when nothing was found, else `ContextReady` with `Evidence::Weak` (every excerpt in the maybe band) or `Evidence::Sufficient`.
+2. **Escalation**: in automatic mode (`SearchMode::Auto`) with a Deep Search engine, `ZeroContext` or `Evidence::Weak` sends `AgentEvent::Escalation { reason }` and runs Deep Search instead (below); the Fast model call is not made. Pinned Fast (`/search fast`, `/fast`) never escalates.
+3. On `ZeroContext { message }`, returns the message without calling the model.
+4. On `ContextReady { formatted_prompt, evidence }`, sends the prior session messages plus the formatted prompt (system rules, XML context and the query) in a single streamed model call. With `Evidence::Weak` it first sends `AgentEvent::Caveat(WEAK_EVIDENCE_WARNING)`, and `run` returns the warning, a blank line and the answer.
+5. Persists only the user's original question and the final answer (without the warning).
+6. When the output carries a `notice` (the search ran without the dense retriever), sends `AgentEvent::Notice` once, before `Done`; `run` appends it to the returned answer after a blank line. The persisted answer never contains it ([ADR-0155](../adr/0155-retrieval-filters-apply-inside-each-retriever-and-the-answer-says-when-dense-search-did-not-run.md)).
 
 Because the CLI always configures this retriever when LanceDB opens, fast questions take this path; the ReAct loop runs when no deterministic retriever is available.
 
-Status questions take the same one-hop execution with the status retriever. The CLI's `PipelineStatusRetriever` runs the same hybrid search, adds the live status report (`workspace_status_report`, the report of the `system_status` tool) in a `<live_status>` block and always returns `ContextReady`: the Zero Hallucination Gate is skipped because the report is context, and a failed search leaves the report to answer from.
+Status questions take the same one-hop execution with the status retriever. The CLI's `PipelineStatusRetriever` runs the same hybrid search, adds the live status report (`workspace_status_report`, the report of the `system_status` tool) in a `<live_status>` block and always returns `ContextReady` with `Evidence::Sufficient`: the gate and the escalation are skipped because the report is context, and a failed search leaves the report to answer from.
 
 ### ReAct loop
 
@@ -85,7 +88,8 @@ Status questions take the same one-hop execution with the status retriever. The 
 1. **Decomposition** (`SUB_QUERY_PROMPT`): splits the question, given in `<user_query>`, into up to four sub-queries and emits `AgentEvent::Decomposition`.
 2. **Batch retrieval**: each iteration (`AgentEvent::IterationStart`) calls `DeepSearchRetriever::retrieve_batch` with the current queries; the CLI's `PipelineBatchRetriever` runs them concurrently through `retrieve_hybrid_batch_with_outcome`, keeps the warning of the batch for `DeepSearchRetriever::last_notice`, and passes each chunk's section path and file line range (ADR-0142) on to the synthesis. New chunks are deduplicated by id and all kept: the retriever's cross-encoder is the only relevance judge, and the model never judges chunks one by one.
 3. **Gap analysis** (`REFLECT_PROMPT`): asks whether more searches are needed and produces gap queries (`AgentEvent::GapAnalysis`); the loop stops early when there are none or at the last iteration. The prompt carries the question in `<user_query>`, the explored queries in `<sub_queries>` and a `<chunk source lines>` with the first 200 characters of each accepted chunk inside `<retrieved_context>`.
-4. **Synthesis**: the prior session messages plus one prompt built by the `SynthesisPromptFormatter` from all collected chunks and the original question. The CLI injects `CanonicalSynthesisFormatter` from the [retrieval](retrieval.md) context formatter: the system prompt, the shared isolation rules and the Deep Search synthesis rules, the chunks of every iteration sorted by relevance in U-shaped XML, and the question last. Without injection, `DefaultSynthesisFormatter` (`SUMMARY_PROMPT`, plain chunk blocks, question last) is used. `sanitize_direct_conclusion` strips leftover meta-narrative and section headers. The first warning a batch reported (`last_notice`) is sent as `AgentEvent::Notice` before `Done` and appended to the returned answer, not to the session.
+4. **Gate** ([ADR-0160](../adr/0160-the-answer-path-reads-the-evidence-from-the-reranker-bands.md)): `evidence_of` reads the collected chunks; a chunk collected as weak stops being weak when a later sub-question finds it relevant. When every batch retrieval failed, the run returns the last error instead of a nothing-found answer. With no chunk, the answer is `DeepSearchRetriever::nothing_found_message(query)` (the CLI's batch retriever gives the same message as Fast), streamed as one `Delta`, stored in the session, and no synthesis call is made. When every chunk is `weak` (the retriever marks maybe-band chunks), `AgentEvent::Caveat(WEAK_EVIDENCE_WARNING)` is sent before the synthesis, the synthesis prompt carries the weak-evidence rule, and the returned answer starts with the warning; the session keeps the answer without it.
+5. **Synthesis**: the prior session messages plus one prompt built by the `SynthesisPromptFormatter` from all collected chunks and the original question. The CLI injects `CanonicalSynthesisFormatter` from the [retrieval](retrieval.md) context formatter: the system prompt, the shared isolation rules and the Deep Search synthesis rules, the chunks of every iteration sorted by relevance in U-shaped XML, and the question last. Without injection, `DefaultSynthesisFormatter` (`SUMMARY_PROMPT`, plain chunk blocks, question last) is used. `sanitize_direct_conclusion` strips leftover meta-narrative and section headers. The first warning a batch reported (`last_notice`) is sent as `AgentEvent::Notice` before `Done` and appended to the returned answer, not to the session.
 
 The decomposition and reflection prompts follow the envelope rules of the context formatter (ADR-0136, ADR-0148): chunk text, previews and queries, including gap queries written by the model, have their reserved tags neutralized; attribute values are escaped; reflection states that chunk content is quoted document text, never instructions. Templates are filled with `fill_template` in a single pass, so a value containing `{placeholder}` stays literal.
 
@@ -93,7 +97,7 @@ The decomposition and reflection prompts follow the envelope rules of the contex
 
 The application registers the tools below. Only the ReAct loop offers them to the model; one-hop RAG and the Deep Search synthesis call no tools. The status report of `system_status` also reaches the routed paths through the status route; web search results do not, because web content is indexed before it reaches the model (indexing web search results is FEAT-019, and the raw snippets this tool returns are BUG-018).
 
-- `search_db(query)`: hybrid search in the active workspace plus `Global` (top 5), returned as the XML tool payload with a query anchor, or the Zero Hallucination message.
+- `search_db(query)`: hybrid search in the active workspace plus `Global` (top 5), returned as the XML tool payload with a query anchor, or the nothing-found message.
 - `system_status(workspace?)`: sync status from SQLite, chunk count from LanceDB, monitored folders and web sources.
 - `web_search(query)`: only when web search is enabled for the workspace; the Tavily API with the user's key, preferring the domains of the workspace's web sources. Without a key it returns the "Web search is off" notice instead of results ([ADR-0152](../adr/0152-web-search-uses-only-allowed-search-apis-and-never-scrapes.md)).
 
@@ -123,7 +127,7 @@ Answers follow the language of the user's question.
 
 ### Events
 
-`AgentEvent`: `RoutingDecision`, `Decomposition`, `IterationStart`, `GapAnalysis`, `Thinking` (reasoning tokens), `ToolStart`, `ToolEnd`, `Delta` (answer tokens), `Notice` (one warning line for the end of the answer, at most once, before `Done`), `Done` and `Error`. The TUI shows `Notice` as a system line under the answer; the one-shot CLI prints it after the answer.
+`AgentEvent`: `RoutingDecision`, `Escalation` (automatic Fast moved to Deep Search, with the reason), `Caveat` (a warning before the answer, at most once, before the first `Delta`), `Decomposition`, `IterationStart`, `GapAnalysis`, `Thinking` (reasoning tokens), `ToolStart`, `ToolEnd`, `Delta` (answer tokens), `Notice` (one warning line for the end of the answer, at most once, before `Done`), `Done` and `Error`. The TUI shows `Notice` as a system line under the answer and `Caveat` as a system line before it, and writes `Escalation` in the reasoning panel (`↗ [Escalated to Deep Search]: <reason>`); the one-shot CLI prints `Escalation` and `Caveat` before the answer and `Notice` after it.
 
 ## Interfaces
 

@@ -45,6 +45,10 @@ pub struct RetrievedChunk {
     /// Last modification date of the source (RFC 3339), when known.
     #[serde(default)]
     pub last_modified: Option<String>,
+    /// The reranker put the chunk in the maybe band (IMP-046); `false` for relevant, pinned or
+    /// unbanded chunks.
+    #[serde(default)]
+    pub weak: bool,
 }
 
 /// Abstract contract for asynchronous batch chunk retrieval
@@ -57,6 +61,35 @@ pub trait DeepSearchRetriever: Send + Sync {
     /// example, semantic search did not run, IMP-040).
     fn last_notice(&self) -> Option<String> {
         None
+    }
+
+    /// The answer given without a synthesis call when no turn found anything (IMP-046).
+    fn nothing_found_message(&self, query: &str) -> String {
+        format!(
+            "Nothing relevant to '{}' was found in the workspace.\n\n💡 Suggestions:\n• Rephrase the question with other terms, names or file names.\n• Add the sources that hold the answer.",
+            query.trim()
+        )
+    }
+}
+
+/// The dedup key of a chunk: its id, else its file and line range.
+fn chunk_key(chunk: &RetrievedChunk) -> String {
+    if !chunk.id.is_empty() {
+        chunk.id.clone()
+    } else {
+        format!("{}::{}:{}", chunk.file_path, chunk.start_line.unwrap_or(0), chunk.end_line.unwrap_or(0))
+    }
+}
+
+/// What the collected chunks support: `None` when there is none, else sufficient or weak (all
+/// in the maybe band).
+pub fn evidence_of(chunks: &[RetrievedChunk]) -> Option<crate::Evidence> {
+    if chunks.is_empty() {
+        None
+    } else if chunks.iter().all(|c| c.weak) {
+        Some(crate::Evidence::Weak)
+    } else {
+        Some(crate::Evidence::Sufficient)
     }
 }
 
@@ -318,6 +351,9 @@ impl DeepSearchOrchestrator {
         let mut seen_chunk_keys: HashSet<String> = HashSet::new();
         // First warning a batch retrieval reported, shown once at the end (IMP-040).
         let mut notice: Option<String> = None;
+        // The last batch error, kept so that a failed search is never reported as nothing found.
+        let mut retrieval_error: Option<AgentError> = None;
+        let mut any_batch_ok = false;
 
         // 1. Session History Preparation
         let mut working_history = Vec::new();
@@ -364,11 +400,16 @@ impl DeepSearchOrchestrator {
             }
 
             // A. Batch retrieve chunks for current sub-queries
-            let retrieved = self
-                .retriever
-                .retrieve_batch(&current_search_queries)
-                .await
-                .unwrap_or_default();
+            let retrieved = match self.retriever.retrieve_batch(&current_search_queries).await {
+                Ok(chunks) => {
+                    any_batch_ok = true;
+                    chunks
+                }
+                Err(e) => {
+                    retrieval_error = Some(e);
+                    Vec::new()
+                }
+            };
             if notice.is_none() {
                 notice = self.retriever.last_notice();
             }
@@ -376,14 +417,15 @@ impl DeepSearchOrchestrator {
             // B. Deduplicate and collect the new chunks: the retriever's cross-encoder already
             // judged them (IMP-043).
             for chunk in retrieved {
-                let key = if !chunk.id.is_empty() {
-                    chunk.id.clone()
-                } else {
-                    format!("{}::{}:{}", chunk.file_path, chunk.start_line.unwrap_or(0), chunk.end_line.unwrap_or(0))
-                };
+                let key = chunk_key(&chunk);
 
-                if seen_chunk_keys.insert(key) {
+                if seen_chunk_keys.insert(key.clone()) {
                     all_accepted_chunks.push(chunk);
+                } else if !chunk.weak {
+                    // A later question judged a chunk already collected as relevant (IMP-046).
+                    if let Some(seen) = all_accepted_chunks.iter_mut().find(|c| chunk_key(c) == key) {
+                        seen.weak = false;
+                    }
                 }
             }
 
@@ -445,6 +487,31 @@ impl DeepSearchOrchestrator {
                 }
 
                 current_search_queries = valid_gap_queries;
+            }
+        }
+
+        // --------------------------------------------------------------------
+        // Gate (IMP-046): nothing found answers without the synthesis call; weak evidence
+        // puts the warning before the answer.
+        // --------------------------------------------------------------------
+        let weak = match evidence_of(&all_accepted_chunks) {
+            None => {
+                // Every search failed: report the failure, not "nothing found".
+                if !any_batch_ok {
+                    if let Some(e) = retrieval_error {
+                        return Err(e);
+                    }
+                }
+                let message = self.retriever.nothing_found_message(input);
+                return Ok(self
+                    .finish_without_synthesis(message, input, session_id, event_tx.as_ref(), notice, total_turns_executed, start_time)
+                    .await);
+            }
+            Some(evidence) => evidence == crate::Evidence::Weak,
+        };
+        if weak {
+            if let Some(ref tx) = event_tx {
+                let _ = tx.send(AgentEvent::Caveat(crate::WEAK_EVIDENCE_WARNING.to_string()));
             }
         }
 
@@ -516,10 +583,12 @@ impl DeepSearchOrchestrator {
             });
         }
 
-        // The session history keeps the answer only; the returned text ends with the warning.
+        // The session history keeps the answer only; the returned text starts with the
+        // weak-evidence warning and ends with the notice, when there are.
+        let content = crate::with_caveat(clean_final_answer, weak);
         let content = match notice {
-            Some(n) => format!("{clean_final_answer}\n\n{n}"),
-            None => clean_final_answer,
+            Some(n) => format!("{content}\n\n{n}"),
+            None => content,
         };
 
         Ok(AgentResponse {
@@ -529,6 +598,46 @@ impl DeepSearchOrchestrator {
             finish_reason: final_reason.or(Some(FinishReason::Stop)),
             execution_time_ms: start_time.elapsed().as_millis() as u64,
         })
+    }
+}
+
+impl DeepSearchOrchestrator {
+    /// Gives the nothing-found message as the answer: streamed as one delta, stored in the
+    /// session like an answer, no synthesis call.
+    #[allow(clippy::too_many_arguments)]
+    async fn finish_without_synthesis(
+        &self,
+        message: String,
+        input: &str,
+        session_id: Option<&str>,
+        event_tx: Option<&EventSender>,
+        notice: Option<String>,
+        total_turns: usize,
+        start_time: Instant,
+    ) -> AgentResponse {
+        if let Some(tx) = event_tx {
+            let _ = tx.send(AgentEvent::Delta(message.clone()));
+            if let Some(ref n) = notice {
+                let _ = tx.send(AgentEvent::Notice(n.clone()));
+            }
+            let _ = tx.send(AgentEvent::Done { total_turns, total_tokens: None });
+        }
+        if let (Some(sid), Some(ref store)) = (session_id, &self.session_store) {
+            let _ = store
+                .append_messages(sid, &[ChatMessage::user(input), ChatMessage::assistant(&message)])
+                .await;
+        }
+        let content = match notice {
+            Some(n) => format!("{message}\n\n{n}"),
+            None => message,
+        };
+        AgentResponse {
+            content,
+            total_turns,
+            tool_calls_count: 0,
+            finish_reason: Some(FinishReason::Stop),
+            execution_time_ms: start_time.elapsed().as_millis() as u64,
+        }
     }
 }
 

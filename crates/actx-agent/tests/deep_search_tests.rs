@@ -363,7 +363,7 @@ async fn test_deep_search_max_iterations_bounded() {
     ];
 
     let client = Arc::new(MockDeepSearchProvider::new(mock_responses));
-    let retriever = Arc::new(MockRetriever::with_chunks(vec![]));
+    let retriever = Arc::new(MockRetriever::with_chunks(vec![chunk("a", 0.9)]));
 
     let orchestrator = DeepSearchOrchestrator::new(
         client,
@@ -418,7 +418,7 @@ async fn test_agent_builder_deep_search_mode() {
     ];
 
     let client = Arc::new(MockDeepSearchProvider::new(mock_responses));
-    let retriever = Arc::new(MockRetriever::with_chunks(vec![]));
+    let retriever = Arc::new(MockRetriever::with_chunks(vec![chunk("a", 0.9)]));
 
     let agent = Agent::builder()
         .client(client)
