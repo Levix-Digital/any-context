@@ -1256,28 +1256,14 @@ impl App {
                     self.current_thinking_buffer.push_str(&format!("✔ [Tool Done: {}]\n", name));
                 }
             }
-            AgentEvent::RoutingDecision { mode, complexity, intent, confidence, reason } => {
-                let badge = if intent == "system_status" {
-                    "📊 [ModelRouter: Live Status]"
-                } else if complexity == "Deep" || mode.contains("DeepSearch") {
-                    "🧠 [ModelRouter: Deep Search]"
-                } else {
-                    "⚡ [ModelRouter: Fast RAG]"
+            AgentEvent::RoutingDecision { route, pinned, reason } => {
+                let badge = match route.as_str() {
+                    "status" => "📊 [Live status]",
+                    "deep" => "🧠 [Deep search]",
+                    _ => "⚡ [Quick search]",
                 };
-                let intent_display = match intent.as_str() {
-                    "code" => "Code & Syntax",
-                    "architecture" => "Architecture & Topology",
-                    "devops_infra" => "DevOps & Infrastructure",
-                    "data_schema" => "Data & Schema",
-                    "security_audit" => "Security & Audit",
-                    "document" => "Document & Business",
-                    "system_status" => "System Status",
-                    _ => "General & Concepts",
-                };
-                self.current_thinking_buffer.push_str(&format!(
-                    "{} (Domain: {}, Conf: {:.0}%)\n• Reason: {}\n\n",
-                    badge, intent_display, confidence * 100.0, reason
-                ));
+                let how = if pinned { "pinned" } else { "automatic" };
+                self.current_thinking_buffer.push_str(&format!("{badge} ({how})\n• {reason}\n\n"));
             }
             AgentEvent::Decomposition { sub_queries } => {
                 self.status = AppStatus::Thinking;

@@ -2,11 +2,10 @@
 //!
 //! Component status (ADR-130):
 //! - Cross-Encoder Re-Ranker: neural (ONNX Runtime, CPU).
-//! - Query Classifier, Scan Sentinel, Layout Extractor, Vision Encoder: heuristic.
+//! - Scan Sentinel, Layout Extractor, Vision Encoder: heuristic.
 
 use std::path::Path;
 use crate::device::ExecutionDevice;
-use crate::query_classifier::{OnnxComplexity, OnnxIntent, OnnxQueryClassifier};
 use crate::scan_sentinel::OnnxScanSentinel;
 use crate::layout_extractor::OnnxLayoutExtractor;
 use crate::vision_encoder::OnnxVisionEncoder;
@@ -39,7 +38,6 @@ impl ComponentStatus {
 /// Unified facade for local inference components.
 #[derive(Debug, Clone)]
 pub struct OnnxEngine {
-    pub query_classifier: OnnxQueryClassifier,
     pub scan_sentinel: OnnxScanSentinel,
     pub layout_extractor: OnnxLayoutExtractor,
     pub vision_encoder: OnnxVisionEncoder,
@@ -56,7 +54,6 @@ impl OnnxEngine {
     /// Initializes the engine with an explicit requested execution device.
     pub fn with_device(models_dir: &Path, device: ExecutionDevice) -> Self {
         Self {
-            query_classifier: OnnxQueryClassifier::new(&models_dir.join("bge_small_query_int8.onnx")),
             scan_sentinel: OnnxScanSentinel::new(&models_dir.join("mobilenetv4_rvl_cdip.onnx")),
             layout_extractor: OnnxLayoutExtractor::new(&models_dir.join("layoutlmv3_base_int8.onnx")),
             vision_encoder: OnnxVisionEncoder::new(&models_dir.join("clip_vit_vision_int8.onnx")),
@@ -87,17 +84,11 @@ impl OnnxEngine {
             ComponentStatus::Fallback
         };
         vec![
-            ("Query Classifier", ComponentStatus::Heuristic),
             ("Scan Sentinel", ComponentStatus::Heuristic),
             ("Layout Extractor", ComponentStatus::Heuristic),
             ("Vision Encoder", ComponentStatus::Heuristic),
             ("Cross-Encoder Re-Ranker", reranker),
         ]
-    }
-
-    /// Evaluates query complexity and intent (deterministic heuristic).
-    pub fn classify_query(&self, query: &str) -> (OnnxComplexity, OnnxIntent, f32, String) {
-        self.query_classifier.classify_query(query)
     }
 
     /// Evaluates scanned page status (deterministic heuristic).
@@ -120,8 +111,8 @@ mod tests {
         let engine = OnnxEngine::init(Path::new("definitely_missing_models_dir"));
         assert_eq!(engine.active_models_count(), 0);
         let summary = engine.summary();
-        assert_eq!(summary.len(), 5);
-        assert!(summary[..4].iter().all(|(_, s)| *s == ComponentStatus::Heuristic));
-        assert_eq!(summary[4].1, ComponentStatus::Fallback);
+        assert_eq!(summary.len(), 4);
+        assert!(summary[..3].iter().all(|(_, s)| *s == ComponentStatus::Heuristic));
+        assert_eq!(summary[3].1, ComponentStatus::Fallback);
     }
 }

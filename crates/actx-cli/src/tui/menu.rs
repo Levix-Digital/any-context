@@ -94,10 +94,6 @@ impl MenuState {
                 self.breadcrumbs = vec!["Main Menu".to_string(), "Document AI".to_string(), "Scan Sentinel".to_string()];
                 self.items = build_doc_ai_scans_menu();
             }
-            "doc_ai:queries" => {
-                self.breadcrumbs = vec!["Main Menu".to_string(), "Document AI".to_string(), "Query Routing".to_string()];
-                self.items = build_doc_ai_queries_menu();
-            }
             "doc_ai:vision" => {
                 self.breadcrumbs = vec!["Main Menu".to_string(), "Document AI".to_string(), "Document Vision".to_string()];
                 self.items = build_doc_ai_vision_menu();
@@ -627,7 +623,7 @@ pub fn build_search_menu() -> Vec<MenuItem> {
         MenuItem {
             id: "search_action:auto".to_string(),
             title: "Auto Search Depth (Smart Default)".to_string(),
-            description: "Automatically switches between fast and reflexive search based on query complexity".to_string(),
+            description: "Starts with the quick search and moves to deep search when the evidence is not enough".to_string(),
             icon: "🎯".to_string(),
             badge: Some("[Default]".to_string()),
             shortcut: Some("/search auto".to_string()),
@@ -816,18 +812,8 @@ pub fn build_document_ai_menu(active_download_name: Option<&str>) -> Vec<MenuIte
     });
 
     items.push(MenuItem {
-        id: "doc_ai:queries".to_string(),
-        title: "🔍 3. Query Routing (Fast vs Deep)".to_string(),
-        description: "Classifies query complexity for direct lookup (<100ms) or multi-step reasoning".to_string(),
-        icon: "🔍".to_string(),
-        badge: Some("[Modular]".to_string()),
-        shortcut: None,
-        is_submenu: true,
-    });
-
-    items.push(MenuItem {
         id: "doc_ai:vision".to_string(),
-        title: "🖼️ 4. Document Vision (Air-Gapped Visual OCR)".to_string(),
+        title: "🖼️ 3. Document Vision (Air-Gapped Visual OCR)".to_string(),
         description: "Visual inspection of charts, tables, and diagrams (Multimodal Cloud vs Local SLMs)".to_string(),
         icon: "🖼️".to_string(),
         badge: Some("[Modular]".to_string()),
@@ -909,51 +895,6 @@ pub fn build_doc_ai_scans_menu() -> Vec<MenuItem> {
     });
 
     if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::find_spec("mobilenetv4-rvl-cdip") {
-        let is_installed = any_context_core_rs::ingestion::OnnxModelManager::is_installed(spec);
-        let mb = spec.size_bytes as f64 / (1024.0 * 1024.0);
-        let (id, title, badge, icon) = if is_installed {
-            (
-                format!("model_action:toggle:{}", spec.id),
-                spec.name.to_string(),
-                Some("[Installed / Active]".to_string()),
-                "✔".to_string(),
-            )
-        } else {
-            (
-                format!("model_action:download:{}", spec.id),
-                format!("Download / Attach {}", spec.name),
-                Some(format!("[Download (~{:.0} MB)]", mb)),
-                "📥".to_string(),
-            )
-        };
-        items.push(MenuItem {
-            id,
-            title,
-            description: format!("{} | Fallback: {}", spec.description, spec.fallback_description),
-            icon,
-            badge,
-            shortcut: None,
-            is_submenu: false,
-        });
-    }
-
-    items
-}
-
-pub fn build_doc_ai_queries_menu() -> Vec<MenuItem> {
-    let mut items = Vec::new();
-
-    items.push(MenuItem {
-        id: "doc_ai_info:deterministic_router".to_string(),
-        title: "RFC-042 Deterministic Classifier (<1µs / 0MB RAM)".to_string(),
-        description: "Routes queries between Fast RAG and Deep Search without cold start or memory overhead.".to_string(),
-        icon: "⚡".to_string(),
-        badge: Some("[Active / Default]".to_string()),
-        shortcut: None,
-        is_submenu: false,
-    });
-
-    if let Some(spec) = any_context_core_rs::ingestion::OnnxModelManager::find_spec("bge-small-onnx") {
         let is_installed = any_context_core_rs::ingestion::OnnxModelManager::is_installed(spec);
         let mb = spec.size_bytes as f64 / (1024.0 * 1024.0);
         let (id, title, badge, icon) = if is_installed {
@@ -1296,10 +1237,10 @@ mod tests {
         assert!(search.iter().any(|i| i.id == "search_action:deep"));
 
         let doc_ai = build_document_ai_menu(None);
-        assert_eq!(doc_ai.len(), 5);
+        assert_eq!(doc_ai.len(), 4);
         assert!(doc_ai.iter().any(|i| i.id == "doc_ai:ingestion"));
         assert!(doc_ai.iter().any(|i| i.id == "doc_ai:scans"));
-        assert!(doc_ai.iter().any(|i| i.id == "doc_ai:queries"));
+        assert!(!doc_ai.iter().any(|i| i.id == "doc_ai:queries"));
         assert!(doc_ai.iter().any(|i| i.id == "doc_ai:vision"));
 
         let ingestion = build_doc_ai_ingestion_menu();
@@ -1307,9 +1248,6 @@ mod tests {
 
         let scans = build_doc_ai_scans_menu();
         assert!(scans.iter().any(|i| i.id.contains("mobilenetv4")));
-
-        let queries = build_doc_ai_queries_menu();
-        assert!(queries.iter().any(|i| i.id.contains("bge-small")));
 
         let vision = build_doc_ai_vision_menu();
         assert!(vision.iter().any(|i| i.id == "doc_ai_action:vision_cloud"));

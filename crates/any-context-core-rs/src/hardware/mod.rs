@@ -2,8 +2,8 @@
 //!
 //! Evaluates physical machine capabilities (Total RAM, Available RAM, Free SSD Disk Space, CPU Cores)
 //! in sub-millisecond time and maps them to the canonical model tiers:
-//! - AirGappedPower (Max offline power, ~740 MB disk, ~850 MB peak RAM)
-//! - SmartBalanced (High cost-benefit, ~252 MB disk, ~400 MB peak RAM)
+//! - AirGappedPower (Max offline power, ~613 MB disk, ~850 MB peak RAM)
+//! - SmartBalanced (High cost-benefit, ~125 MB disk, ~400 MB peak RAM)
 //! - Lite (only the small embedding model, ~135 MB disk, heuristics for everything else)
 
 use std::path::{Path, PathBuf};
@@ -66,7 +66,6 @@ impl ProfileTier {
                 "mobilenetv4-rvl-cdip",
                 "clip-vit-int8",
                 "layoutlmv3-int8",
-                "bge-small-onnx",
                 "mmarco-reranker",
                 "laya-int8",
                 "gemma-4-32b",
@@ -76,7 +75,6 @@ impl ProfileTier {
                 "mobilenetv4-rvl-cdip",
                 "clip-vit-int8",
                 "layoutlmv3-int8",
-                "bge-small-onnx",
                 "mmarco-reranker",
                 "laya-int8",
                 "gemma-4-27b",
@@ -86,7 +84,6 @@ impl ProfileTier {
                 "mobilenetv4-rvl-cdip",
                 "clip-vit-int8",
                 "layoutlmv3-int8",
-                "bge-small-onnx",
                 "mmarco-reranker",
                 "laya-int8",
                 "gemma-4-12b",
@@ -95,7 +92,6 @@ impl ProfileTier {
             Self::SmartBalanced => &[
                 "mobilenetv4-rvl-cdip",
                 "layoutlmv3-int8",
-                "bge-small-onnx",
                 "mmarco-reranker",
                 "gemma-4-compact",
                 "multilingual-e5-base",

@@ -1,4 +1,4 @@
-//! Unit tests for ChatModelRouter and dynamic query complexity routing
+//! Routing tests (IMP-038): the route comes from the search mode, never from the question's words.
 
 use actx_agent::router::*;
 use actx_agent::*;
@@ -6,7 +6,6 @@ use actx_lm::error::LmError;
 use actx_lm::traits::{BoxedChunkStream, LmProvider};
 use actx_lm::types::{ChatRequest, ChatResponse, FinishReason, StreamChunk, TokenUsage};
 use async_trait::async_trait;
-use std::time::Instant;
 
 #[derive(Clone)]
 struct SimpleMockProvider;
@@ -42,225 +41,34 @@ impl LmProvider for SimpleMockProvider {
     }
 }
 
-#[test]
-fn test_router_fast_queries_classification() {
-    let router = ChatModelRouter::default();
-
-    let fast_queries = vec![
-        "onde fica o timeout da conexão?",
-        "qual linha define a porta 8080?",
-        "qual comando limpa o cache?",
-        "qual a versão atual do actx?",
-        "o que significa o status IDLE?",
-        "qual o atalho para alternar de workspace?",
-        "mostre a função calculate_sum",
-    ];
-
-    for q in fast_queries {
-        let decision = router.evaluate(q, SearchMode::Auto);
-        assert_eq!(
-            decision.complexity,
-            QueryComplexity::Fast,
-            "Expected Fast complexity for query '{}', got decision: {:?}",
-            q,
-            decision
-        );
-        assert_eq!(
-            decision.mode,
-            AgentExecutionMode::ReAct,
-            "Expected ReAct execution mode for fast query in Auto mode: '{}'",
-            q
-        );
-        assert!(
-            decision.confidence < 0.45,
-            "Confidence score should be below threshold for fast query '{}', got: {}",
-            q,
-            decision.confidence
-        );
-    }
-}
-
-#[test]
-fn test_router_deep_queries_classification() {
-    let router = ChatModelRouter::default();
-
-    let deep_queries = vec![
-        "explique a arquitetura sistêmica de ponta a ponta do orquestrador de sincronização e seus trade-offs",
-        "faça uma auditoria de segurança completa de todas as ocorrências de decodificação zlib e trate possíveis panics",
-        "compare a abordagem de armazenamento com LanceDB versus Sqlite e aponte os prós e contras",
-        "quais módulos precisam ser alterados para suportar o novo protocolo? e também como os testes e o CI são impactados?",
-        "descreva o ciclo de vida completo de uma requisição desde a CLI até a síntese final com referências",
-        "qual a melhor abordagem para refatoração do pipeline considerando impacto em performance e concorrência?",
-    ];
-
-    for q in deep_queries {
-        let decision = router.evaluate(q, SearchMode::Auto);
-        assert_eq!(
-            decision.complexity,
-            QueryComplexity::Deep,
-            "Expected Deep complexity for query '{}', got decision: {:?}",
-            q,
-            decision
-        );
-        assert_eq!(
-            decision.mode,
-            AgentExecutionMode::DeepSearch,
-            "Expected DeepSearch execution mode for complex query in Auto mode: '{}'",
-            q
-        );
-        assert!(
-            decision.confidence >= 0.45,
-            "Confidence score should meet or exceed threshold for deep query '{}', got: {}",
-            q,
-            decision.confidence
-        );
-    }
-}
-
-#[test]
-fn test_router_forced_modes() {
-    let router = ChatModelRouter::default();
-
-    // Fast query under forced Deep mode
-    let fast_query = "what is the default port?";
-    let decision_deep = router.evaluate(fast_query, SearchMode::Deep);
-    assert_eq!(decision_deep.mode, AgentExecutionMode::DeepSearch);
-    assert!(decision_deep.reason.contains("forced by user"));
-
-    // Deep query under forced Fast mode
-    let deep_query = "explain the system architecture end-to-end and its trade-offs";
-    let decision_fast = router.evaluate(deep_query, SearchMode::Fast);
-    assert_eq!(decision_fast.mode, AgentExecutionMode::ReAct);
-    assert!(decision_fast.reason.contains("forced by user"));
-}
-
-#[test]
-fn test_router_intent_detection() {
-    let router = ChatModelRouter::default();
-
-    // Code Intent
-    let q_code = "como refatorar a função calculate_metrics com async fn e struct em Rust?";
-    let d_code = router.evaluate(q_code, SearchMode::Auto);
-    assert_eq!(d_code.intent, QueryIntent::Code);
-
-    // Architecture Intent
-    let q_arch = "desenhe o diagrama da arquitetura hexagonal e o fluxo de dados entre camadas";
-    let d_arch = router.evaluate(q_arch, SearchMode::Auto);
-    assert_eq!(d_arch.intent, QueryIntent::Architecture);
-
-    // Document Intent
-    let q_doc = "qual é a cláusula de confidencialidade do contrato e da fatura CMR?";
-    let d_doc = router.evaluate(q_doc, SearchMode::Auto);
-    assert_eq!(d_doc.intent, QueryIntent::Document);
-
-    // DevOps & Infra Intent
-    let q_devops = "como configurar o Dockerfile e o workflow de CI/CD do GitHub Actions com sccache?";
-    let d_devops = router.evaluate(q_devops, SearchMode::Auto);
-    assert_eq!(d_devops.intent, QueryIntent::DevOpsInfra);
-
-    // Data & Schema Intent
-    let q_data = "quais as colunas da tabela workspace_chunks e a primary key no SQLite?";
-    let d_data = router.evaluate(q_data, SearchMode::Auto);
-    assert_eq!(d_data.intent, QueryIntent::DataSchema);
-
-    // Security & Audit Intent
-    let q_sec = "audite o código contra vulnerabilidade de injeção e vazamento de secret api_key";
-    let d_sec = router.evaluate(q_sec, SearchMode::Auto);
-    assert_eq!(d_sec.intent, QueryIntent::SecurityAudit);
-
-    // General Intent
-    let q_gen = "olá bom dia, como você está se sentindo hoje?";
-    let d_gen = router.evaluate(q_gen, SearchMode::Auto);
-    assert_eq!(d_gen.intent, QueryIntent::General);
-}
-
-#[test]
-fn test_router_sub_microsecond_performance() {
-    let router = ChatModelRouter::default();
-    let samples = vec![
-        "qual a porta padrão do servidor HTTP?",
-        "explique a arquitetura sistêmica do orquestrador de sincronização e seus trade-offs",
-        "onde fica o arquivo settings.db no Windows?",
-        "compare a implementação com LanceDB versus Sqlite e aponte prós e contras",
-        "como importar o trait LmProvider em crates/actx-lm?",
-    ];
-
-    // Wall-clock time is noisy under parallel test load: measure several
-    // batches and keep the fastest, so preemption by other tests does not
-    // count against the router.
-    let batches = 5;
-    let iterations_per_batch = 1_000;
-    let mut best_avg_micros = f64::MAX;
-    for _ in 0..batches {
-        let start = Instant::now();
-        for i in 0..iterations_per_batch {
-            let q = samples[i % samples.len()];
-            let _ = router.evaluate(q, SearchMode::Auto);
-        }
-        let avg_micros = start.elapsed().as_secs_f64() * 1e6 / iterations_per_batch as f64;
-        best_avg_micros = best_avg_micros.min(avg_micros);
-    }
-
-    // SLA: under 50 µs per classification in optimized builds (about 2.5 µs
-    // measured). Unoptimized builds run about 20x slower (about 40 µs), so
-    // they get a budget scaled by the same factor: it still catches
-    // order-of-magnitude regressions without failing on scheduling noise.
-    let budget_micros = if cfg!(debug_assertions) {
-        1_000.0
-    } else {
-        50.0
-    };
-
-    println!(
-        "ChatModelRouter Performance: best of {} batches of {} evaluations (avg: {:.3} µs / evaluation, budget: {} µs)",
-        batches, iterations_per_batch, best_avg_micros, budget_micros
-    );
-
-    assert!(
-        best_avg_micros < budget_micros,
-        "Classification took {:.3} µs, exceeding the {} µs budget",
-        best_avg_micros,
-        budget_micros
-    );
-}
-
 #[tokio::test]
-async fn test_agent_stream_emits_routing_decision_event() {
-    let provider = std::sync::Arc::new(SimpleMockProvider);
-
-    let agent = Agent::builder()
-        .client(provider)
-        .model("test-model")
-        .search_mode(SearchMode::Auto)
-        .build_sync()
-        .expect("build agent");
-
-    let query = "explique a arquitetura sistêmica de ponta a ponta do orquestrador";
-    let (mut rx, _handle) = agent.stream(query, Some("test_session".to_string()));
-
-    // First event emitted must be RoutingDecision
-    let first_event = rx.recv().await.expect("first event should exist");
-    match first_event {
-        AgentEvent::RoutingDecision {
-            mode,
-            complexity,
-            intent,
-            confidence,
-            reason,
-        } => {
-            assert_eq!(complexity, "Deep");
-            assert!(mode.contains("DeepSearch"));
-            assert_eq!(intent, "architecture");
-            assert!(confidence >= 0.45);
-            assert!(!reason.is_empty());
+async fn test_agent_stream_emits_the_route_first() {
+    let cases = [
+        (SearchMode::Auto, "explique a arquitetura sistêmica de ponta a ponta do orquestrador", "fast", false),
+        (SearchMode::Fast, "explique a arquitetura sistêmica de ponta a ponta do orquestrador", "fast", true),
+        (SearchMode::Deep, "qual porta?", "deep", true),
+    ];
+    for (mode, query, expected_route, expected_pinned) in cases {
+        let agent = Agent::builder()
+            .client(std::sync::Arc::new(SimpleMockProvider))
+            .model("test-model")
+            .search_mode(mode)
+            .build_sync()
+            .expect("build agent");
+        let (mut rx, _handle) = agent.stream(query, Some("test_session".to_string()));
+        match rx.recv().await.expect("first event should exist") {
+            AgentEvent::RoutingDecision { route, pinned, reason } => {
+                assert_eq!(route, expected_route, "{mode:?}");
+                assert_eq!(pinned, expected_pinned, "{mode:?}");
+                assert!(!reason.is_empty());
+            }
+            other => panic!("Expected AgentEvent::RoutingDecision as first event, got {:?}", other),
         }
-        other => panic!("Expected AgentEvent::RoutingDecision as first event, got {:?}", other),
     }
 }
 
 #[test]
 fn test_router_detects_status_questions_in_every_search_mode() {
-    let router = ChatModelRouter::default();
     let status_queries = [
         "is everything indexed yet?",
         "what is the sync status?",
@@ -270,27 +78,27 @@ fn test_router_detects_status_questions_in_every_search_mode() {
     ];
     for q in status_queries {
         for mode in [SearchMode::Auto, SearchMode::Fast, SearchMode::Deep] {
-            let decision = router.evaluate(q, mode);
-            assert_eq!(decision.intent, QueryIntent::SystemStatus, "query '{q}' in {mode:?}");
-            assert!(decision.reason.contains("live status question"));
+            let decision = route(q, mode);
+            assert_eq!(decision.route, Route::Status, "query '{q}' in {mode:?}");
+            assert_eq!(decision.reason, "live status question");
         }
     }
 }
 
 #[test]
 fn test_router_keeps_how_to_questions_out_of_the_status_route() {
-    let router = ChatModelRouter::default();
     for q in ["how do I sync a folder?", "como adicionar um site ao workspace?", "how do I add a website?"] {
-        let decision = router.evaluate(q, SearchMode::Auto);
-        assert_ne!(decision.intent, QueryIntent::SystemStatus, "query '{q}'");
+        assert_eq!(route(q, SearchMode::Auto).route, Route::Fast, "query '{q}'");
     }
 }
 
 #[test]
-fn test_status_intent_keeps_mode_and_complexity() {
-    let router = ChatModelRouter::default();
-    let decision = router.evaluate("is everything indexed yet?", SearchMode::Deep);
-    assert_eq!(decision.mode, AgentExecutionMode::DeepSearch);
-    assert_eq!(decision.complexity, QueryComplexity::Deep);
-    assert_eq!(QueryIntent::SystemStatus.as_str(), "system_status");
+fn test_questions_the_old_classifier_sent_to_deep_start_fast_in_automatic_mode() {
+    for q in [
+        "Compare the pros and cons of the two architectures, and also explain the end-to-end lifecycle?",
+        "faça uma auditoria de segurança completa de todos os módulos e quais arquivos se relacionam",
+        "Explain step by step the whole flow from the request to the response, including every module involved, the data stored at each step, the errors that can happen and how they are reported back to the user interface",
+    ] {
+        assert_eq!(route(q, SearchMode::Auto), RouteDecision { route: Route::Fast, pinned: false, reason: mode_route(SearchMode::Auto).reason });
+    }
 }

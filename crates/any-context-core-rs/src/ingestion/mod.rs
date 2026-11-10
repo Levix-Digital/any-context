@@ -38,7 +38,6 @@ pub use quality_gate::{QualityGate, QualityGateConfig, QualityDecision, QualityR
 pub use model_router::{IngestionModelRouter, DocumentLayoutExtractor, VisionExecutionMode};
 pub use model_manager::{OnnxModelManager, OnnxModelSpec, OnnxModelCategory, ModelAvailability, ModelFile, ModelStoreSummary, ModelStatusItem, ONNX_CATALOG, DEFAULT_RERANKER_ID, MODELS_MIRROR_ENV, MODELS_MIRROR_SETTING, reranker_short_label};
 pub use onnx_adapter::{
-    OnnxComplexityClassifierAdapter,
     OnnxScanSentinelAdapter,
     OnnxLayoutExtractorAdapter,
     OnnxVisionEncoderAdapter,
