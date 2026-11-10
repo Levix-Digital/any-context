@@ -1604,6 +1604,14 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/cli-and-release-v2.md, section 5. Review the 73 ADRs in docs/adr (all already in English, all `accepted` today) against the v2 design and mark those it replaces as superseded with a pointer to the v2 document (e.g. 0116 path healing, 0129 and 0130 reranking, 0077 TUI); the valid ones stay.
 
+### ADJ-009: [docs] One-page product pitch under the shared Levix convention
+- **Priority**: low
+- **Epic**: EPIC-010
+- **Status**: open
+- **Found**: 2026-11-10, cross-project thread 20261110-170413 with dev-cycle-protocol
+- **Plan**: -
+- **Description**: Shared convention agreed with Dev Cycle Protocol and approved by the owner on 2026-11-10 (cross-project thread 20261110-170413, decision 1). A project's one-page client pitch lives at `docs/product/PITCH.md`, in English (translations as `PITCH.<lang>.md` are allowed, each project decides; AnyContext keeps English only in the repository), plain Markdown of at most about 600 words, with the sections in this order: title and tagline, The problem, The solution, What it does today, Why AnyContext, Coming soon, The vision (optional), Get started. "What it does today" lists only released capabilities; roadmap items go to "Coming soon" without dates or versions. The pitch is derived from `docs/product/VISION.md` and the roadmap, is updated in the same pull request when they change, and its one-line description reuses the vision's "Positioning" section (PR #404) verbatim. When the suite is named, the wording is "Aurora Dev Suite: Dev Cycle Protocol + Spec Kit + Gedo + AnyContext"; for AnyContext it is at most one closing line, because its buyers are mostly not developers. Whether AnyContext adds the pitch file, and when, is the owner's decision; until then the Positioning section is the record.
+
 ## Epics
 
 ### EPIC-001: Ingestion: sources, formats, extraction and incremental sync
