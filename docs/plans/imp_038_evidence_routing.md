@@ -3,10 +3,10 @@ plan_id: imp_038_evidence_routing
 project: any-context
 title: Automatic mode routes by evidence, not by keywords
 version: v1.0.0
-status: active
+status: in_progress
 author: LeviGuilherme
 created_at: '2026-11-10T12:51:10'
-updated_at: '2026-11-10T12:51:10'
+updated_at: '2026-11-10T17:17:26'
 session_id: null
 tags:
 - retrieval
@@ -19,9 +19,13 @@ backlog_items:
 spec_dir: specs/009-evidence-routing
 milestones:
 - name: M1 Route and signal
-  done: false
+  done: true
+  done_at: '2026-11-10'
+  by: LeviGuilherme
 - name: M2 Weights removal
-  done: false
+  done: true
+  done_at: '2026-11-10'
+  by: LeviGuilherme
 - name: M3 Docs and checks
   done: false
 status_log:
@@ -29,6 +33,12 @@ status_log:
   by: LeviGuilherme
   status: active
   note: Plan created
+- at: '2026-11-10T17:17:21'
+  by: LeviGuilherme
+  note: 'Milestone ''M1 Route and signal'' completed: PR #406'
+- at: '2026-11-10T17:17:26'
+  by: LeviGuilherme
+  note: 'Milestone ''M2 Weights removal'' completed: PR #406'
 ---
 
 # Automatic mode routes by evidence, not by keywords

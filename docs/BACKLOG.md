@@ -1418,14 +1418,6 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 2, Routing. ReAct stops being a mode. The tools (help, status, source tools, table query, web search when allowed) are available in Fast (search first, at most about 2 tool calls) and in Deep. Supersedes FEAT-019.
 
-### IMP-038: [retrieval] Automatic mode escalates from Fast to Deep on weak evidence
-- **Priority**: medium
-- **Epic**: EPIC-002
-- **Status**: open
-- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
-- **Plan**: imp_038_evidence_routing
-- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 2, Routing. Automatic mode starts Fast and escalates to Deep when the best chunks have low reranker relevance or the LLM says the context is not enough, with a discreet indicator; the user can pin Fast or Deep. Acceptance: no keyword routing in any language; the PT/EN keyword classifier (actx-agent/src/router.rs:176-234) and the heuristic query classifier (actx-onnx/src/query_classifier.rs) are removed. Supersedes the query classifier part of IMP-006.
-
 ### IMP-039: [retrieval] Deep turns refine, search and evaluate, with turn and token ceilings
 - **Priority**: medium
 - **Epic**: EPIC-002
@@ -2475,3 +2467,12 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: imp_046_nothing_found_gate
 - **Closed**: 2026-11-09, PR #403
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 7, Selection. No relevant chunk in automatic Fast escalates to Deep; nothing after Deep, or with Fast pinned, answers that nothing was found without calling the LLM, suggesting rephrasing, adding sources or @source; only maybe-band chunks give an answer with an explicit weak-evidence warning. Replaces today's gate on the RRF score.
+
+### IMP-038: [retrieval] Automatic mode escalates from Fast to Deep on weak evidence
+- **Priority**: medium
+- **Epic**: EPIC-002
+- **Status**: done
+- **Found**: 2026-10-23, batch 3 of the v2 backlog rebuild
+- **Plan**: imp_038_evidence_routing
+- **Closed**: 2026-11-10, PR #406
+- **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 2, Routing. Automatic mode starts Fast and escalates to Deep when the best chunks have low reranker relevance or the LLM says the context is not enough, with a discreet indicator; the user can pin Fast or Deep. Acceptance: no keyword routing in any language; the PT/EN keyword classifier (actx-agent/src/router.rs:176-234) and the heuristic query classifier (actx-onnx/src/query_classifier.rs) are removed. Supersedes the query classifier part of IMP-006.
