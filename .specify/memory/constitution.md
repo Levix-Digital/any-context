@@ -1,7 +1,7 @@
 <!-- dev-cycle-constitution
 generated-by: dev-cycle-protocol/constitution.py (do not edit; change a source and regenerate)
-sources-sha256: 08efe78ef3e870823f21e1733880d10237d404a2a89afc2ea318cd9ed72d5569
-content-sha256: 4f9486ca0e56a58c993845e0df1938c030e8fac52d6d7a93a5509a80d11712f3
+sources-sha256: f1c2c661a4b6c1620ae9edf2cf07070f87efa79572268bf71ee8c976dcabcd39
+content-sha256: 598bdf7098e506f2dfc1abfe83bfe70f390ac4a2cfa72694f7b5d9b19fd1ff0c
 -->
 # any-context Constitution
 
@@ -245,6 +245,7 @@ Accepted decisions; a plan that contradicts one needs a new ADR that supersedes 
 - ADR-0157: The cross-encoder is always on, discards what it does not score and reports when it cannot run (`docs/adr/0157-the-cross-encoder-is-always-on-discards-what-it-does-not-sco.md`)
 - ADR-0158: Reranker scores are read as relevance bands and irrelevant chunks are discarded (`docs/adr/0158-reranker-scores-are-read-as-relevance-bands-and-irrelevant-chunks-are-discarded.md`)
 - ADR-0159: Selection admits chunks by relevance band within a token budget per mode (`docs/adr/0159-selection-admits-chunks-by-relevance-band-within-a-token-budget-per-mode.md`)
+- ADR-0160: The answer path reads the evidence from the reranker bands (`docs/adr/0160-the-answer-path-reads-the-evidence-from-the-reranker-bands.md`)
 
 ## Governance
 
@@ -252,4 +253,4 @@ Accepted decisions; a plan that contradicts one needs a new ADR that supersedes 
 - Amendments change the source, not this file: an ADR for decisions, the technical specification for requirements and constraints, `.dev-cycle.json` for the architecture style, the skills for principles. Then run `constitution.py generate` and commit the result with the change.
 - Gate 3 of the development cycle blocks a plan while this file is stale or edited by hand.
 
-**Version**: 1.11.0 | **Ratified**: 2026-10-24 | **Last Amended**: 2026-11-06
+**Version**: 1.12.0 | **Ratified**: 2026-10-24 | **Last Amended**: 2026-11-10
