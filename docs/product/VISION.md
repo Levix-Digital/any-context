@@ -2,6 +2,18 @@
 
 AnyContext answers questions from a person's or a company's own documents, folders and documentation sites, with citations, without the documents leaving the machine or the company's perimeter. It is the document line of Levix Digital: "ask your documents without them leaving home".
 
+## Positioning
+
+How AnyContext is described to customers. Use these words, in this order of preference.
+
+- **One sentence**: AnyContext is an assistant that answers questions from your own documents, citing the source of every answer, without the documents ever leaving your computer or your company.
+- **Tagline**: Ask your documents without them leaving home.
+- **Is it an agent?** No. It uses an agent inside, the Deep mode, which breaks hard questions down and searches in several rounds. But the product is the assistant over your documents, not a general agent that carries out tasks.
+- **Is it a platform?** It is not a platform for others to build on. It is a finished product you install. For companies, it plugs into the Levix Admin Hub for licenses, policies and auditing.
+- **Technical audience**: a local-first context engine: hybrid search with local reranking, checked citations and an MCP server so the company's agents can query internal documentation without sending it outside.
+
+The one-sentence pitch leaves out the word "AI" on purpose: regulated buyers often work under a "no AI" policy, and what answers their objection is that the documents never leave the perimeter.
+
 ## Problem
 
 Analysts, lawyers, doctors, engineers and researchers spend a large part of the day looking for things in internal documents: contracts, records, protocols, specifications, code and its documentation. General chat assistants and cloud notebook tools can answer from documents, but only after the documents are uploaded to a third party, which the security policy of regulated organizations does not allow and which many professionals do not want for their own material. What they do today is search by file name or full text, open each file and read, or copy passages into a chat tool against the policy. Enterprise search products that stay on-premise are expensive, heavy to deploy and do not answer questions; they return lists of files.
