@@ -89,6 +89,7 @@ ADR-0111 was never written.
 <!-- architecture-docs:adrs:start -->
 | ADR | Title | Status | Version | Date |
 |---|---|---|---|---|
+| [ADR-0161](docs/adr/0161-automatic-mode-routes-by-evidence-and-the-keyword-classifier.md) | Automatic mode routes by evidence and the keyword classifier is removed | accepted | v1.0.0 | 2026-11-10 |
 | [ADR-0160](docs/adr/0160-the-answer-path-reads-the-evidence-from-the-reranker-bands.md) | The answer path reads the evidence from the reranker bands | accepted | v1.0.0 | 2026-11-09 |
 | [ADR-0159](docs/adr/0159-selection-admits-chunks-by-relevance-band-within-a-token-budget-per-mode.md) | Selection admits chunks by relevance band within a token budget per mode | accepted | v1.0.0 | 2026-10-31 |
 | [ADR-0158](docs/adr/0158-reranker-scores-are-read-as-relevance-bands-and-irrelevant-chunks-are-discarded.md) | Reranker scores are read as relevance bands and irrelevant chunks are discarded | accepted | v1.0.0 | 2026-10-30 |

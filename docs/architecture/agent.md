@@ -10,7 +10,7 @@ Query routing, one-hop RAG, the ReAct loop, Deep Search, tools, system prompt an
 
 ## Responsibilities
 
-- Decide, for every question, between a deterministic one-hop RAG answer, the ReAct tool loop and the multi-phase Deep Search.
+- Route every question by the search mode to a deterministic one-hop RAG answer (the ReAct tool loop when no retriever is configured) or the multi-phase Deep Search, and escalate automatic mode to Deep Search on evidence.
 - Run each path against a language model provider, streaming typed events to the interface.
 - Register and call tools (`search_db`, `system_status`, `web_search`).
 - Persist the conversation per workspace and reload it on the next turn.
@@ -23,7 +23,8 @@ Retrieval itself is in the [retrieval pipeline](retrieval.md); the concrete tool
 | Module | Role |
 |---|---|
 | `lib.rs` | `Agent`, `AgentBuilder`, `DeterministicRetriever`, `DeterministicRetrievalOutput`, `Evidence`, `WEAK_EVIDENCE_WARNING`, `ToolBasedRetriever`; the shared one-hop execution (`run_one_hop`, `answer_one_hop`, `stream_one_hop`) and the Fast-to-Deep escalation. |
-| `router.rs` | `ChatModelRouter`, `ComplexityClassifier`, `DeterministicClassifier`, `RoutingDecision`, `QueryComplexity`, `QueryIntent`, `is_status_query`. |
+| `router.rs` | `Route` (`Fast`, `Deep`, `Status`), `RouteDecision`, `route`, `mode_route`, `is_status_query`. |
+| `escalation.rs` | The not-enough signal: `NOT_ENOUGH_SIGNAL`, `NOT_ENOUGH_REASON`, `with_not_enough_rule`, `SignalFilter`, `is_signal`, `strip_signal`. |
 | `fsm.rs` | `ReActOrchestrator`: the ReAct state machine. |
 | `deep_search.rs` | `DeepSearchOrchestrator`, `DeepSearchRetriever`, `DeepSearchConfig`, `RetrievedChunk`, `evidence_of`, `SynthesisPromptFormatter`, `DefaultSynthesisFormatter`, prompts, prompt builders and response parsers. |
 | `prompt_safety.rs` | `RESERVED_PROMPT_TAGS`, `neutralize_reserved_tags`, `escape_xml_attr` and `fill_template`, shared with the [retrieval](retrieval.md) context formatter. |
@@ -35,14 +36,15 @@ Retrieval itself is in the [retrieval pipeline](retrieval.md); the concrete tool
 
 ```mermaid
 flowchart TD
-    Q[User question] --> R[ChatModelRouter.evaluate]
-    R -->|SystemStatus intent, status retriever present| SR[Status retriever]
+    Q[User question] --> R[route: search mode]
+    R -->|status terms, status retriever present| SR[Status retriever]
     SR --> ONE
-    R -->|Deep| DS[DeepSearchOrchestrator]
-    R -->|Fast / Direct, retriever present| DR[DeterministicRetriever]
+    R -->|Deep pinned| DS[DeepSearchOrchestrator]
+    R -->|Auto or Fast pinned, retriever present| DR[DeterministicRetriever]
     DR -->|Auto, nothing or weak evidence| E[Escalation event] --> DS
     DR -->|ZeroContext| Z[Honest not-found answer, no LLM call]
     DR -->|ContextReady| ONE[One streamed LLM call, warning first when weak]
+    ONE -->|Auto, answer is the not-enough signal| E
     DS -->|no chunk collected| Z
     R -->|otherwise| RE[ReActOrchestrator tool loop]
     DS & ONE & RE & Z --> S[(Session store)]
@@ -52,26 +54,25 @@ flowchart TD
 
 ### Routing
 
-`ChatModelRouter::evaluate(query, search_mode)` classifies the query (complexity, intent, confidence, reason) and applies the workspace's search mode:
+`router::route(query, search_mode)` chooses the route from the workspace's search mode only, never from the question's words ([ADR-0161](../adr/0161-automatic-mode-routes-by-evidence-and-the-keyword-classifier.md)):
 
-- `/search fast` forces the fast path and `/search deep` forces Deep Search.
-- `/search auto` follows the classifier: `Deep` complexity goes to Deep Search, `Fast` to the fast path.
-- Intents: `Code`, `Architecture`, `DevOpsInfra`, `DataSchema`, `SecurityAudit`, `Document`, `General`, and `SystemStatus`.
-- After the classifier, `is_status_query` checks for terms about the live state of the workspace (indexed, indexing, syncing, sync status, status, progress, chunk counts, and their Portuguese forms). A match sets the intent to `SystemStatus` and prefixes the reason with "live status question"; mode and complexity are unchanged. It runs after any classifier, so the application's ONNX adapter routes status questions the same way (ADR-0145).
-- When the intent is `SystemStatus` and a status retriever is configured (`AgentBuilder::status_retriever`), `run` and `stream` answer through it in every search mode, before Deep Search and the fast path.
+- `/search auto` (the default) and `/search fast` take the fast path; `/search deep` takes Deep Search. `RouteDecision::pinned` is false only for automatic mode.
+- Automatic mode moves to Deep Search on evidence, after the quick search: nothing found or weak evidence (below), or the model's not-enough signal.
+- `is_status_query` checks for terms about the live state of the workspace (indexed, indexing, syncing, sync status, status, progress, chunk counts, and their Portuguese forms). A match gives `Route::Status` with the reason "live status question" (ADR-0145). When a status retriever is configured (`AgentBuilder::status_retriever`), `run` and `stream` answer through it in every search mode; without one, `mode_route` gives the search mode's route. This term list stays until status becomes an agent tool (FEAT-082).
 
-The classifier is a deterministic keyword and structure heuristic (query length, multi-clause markers, comparison triggers, domain patterns). In the application it is the `actx-onnx` query classifier wrapped by `OnnxComplexityClassifierAdapter`, which is also heuristic (see [ONNX Inference](onnx.md)). `Agent::stream` emits `AgentEvent::RoutingDecision` before anything else so the interface can show the route; the TUI and one-shot mode show `📊 [ModelRouter: Live Status]` for the `system_status` intent.
+`Agent::stream` emits `AgentEvent::RoutingDecision { route, pinned, reason }` before anything else so the interface can show the route: the TUI and one-shot mode show `⚡ [Quick search]`, `🧠 [Deep search]` or `📊 [Live status]` with `(automatic)` or `(pinned)` and the reason.
 
 ### One-hop deterministic RAG
 
-When a `DeterministicRetriever` is configured and the route is fast (or the mode is `Direct`), the agent:
+When a `DeterministicRetriever` is configured and the route is fast, the agent:
 
 1. Calls `retrieve_and_format(query)`. The CLI's `PipelineDeterministicRetriever` runs one hybrid search and applies the nothing-found and weak-evidence gate of the [retrieval](retrieval.md) pipeline ([ADR-0160](../adr/0160-the-answer-path-reads-the-evidence-from-the-reranker-bands.md)): `ZeroContext` when nothing was found, else `ContextReady` with `Evidence::Weak` (every excerpt in the maybe band) or `Evidence::Sufficient`.
-2. **Escalation**: in automatic mode (`SearchMode::Auto`) with a Deep Search engine, `ZeroContext` or `Evidence::Weak` sends `AgentEvent::Escalation { reason }` and runs Deep Search instead (below); the Fast model call is not made. Pinned Fast (`/search fast`, `/fast`) never escalates.
+2. **Escalation on the bands**: in automatic mode (`SearchMode::Auto`) with a Deep Search engine, `ZeroContext` or `Evidence::Weak` sends `AgentEvent::Escalation { reason }` and runs Deep Search instead (below); the Fast model call is not made. Pinned Fast (`/search fast`, `/fast`) never escalates.
 3. On `ZeroContext { message }`, returns the message without calling the model.
 4. On `ContextReady { formatted_prompt, evidence }`, sends the prior session messages plus the formatted prompt (system rules, XML context and the query) in a single streamed model call. With `Evidence::Weak` it first sends `AgentEvent::Caveat(WEAK_EVIDENCE_WARNING)`, and `run` returns the warning, a blank line and the answer.
-5. Persists only the user's original question and the final answer (without the warning).
-6. When the output carries a `notice` (the search ran without the dense retriever), sends `AgentEvent::Notice` once, before `Done`; `run` appends it to the returned answer after a blank line. The persisted answer never contains it ([ADR-0155](../adr/0155-retrieval-filters-apply-inside-each-retriever-and-the-answer-says-when-dense-search-did-not-run.md)).
+5. **Escalation on the model's signal** (IMP-038): in automatic mode with a Deep Search engine and `Evidence::Sufficient`, the prompt ends with an `<escalation_rule>` asking the model to reply only with `NOT_ENOUGH_SIGNAL` when the excerpts do not contain the answer. `SignalFilter` holds back the streamed tokens while they can still be the signal (after leading whitespace), passes them on at the first mismatch, and flushes what it holds when the stream ends. When the answer starts with the signal, no token has been shown: the agent sends `AgentEvent::Escalation { reason: NOT_ENOUGH_REASON }`, runs Deep Search with the same event channel, and stores nothing of the Fast attempt; `run` checks the complete answer the same way. A signal later in an answer is removed from the returned and stored text. Pinned Fast gets no rule.
+6. Persists only the user's original question and the final answer (without the warning).
+7. When the output carries a `notice` (the search ran without the dense retriever), sends `AgentEvent::Notice` once, before `Done`; `run` appends it to the returned answer after a blank line. The persisted answer never contains it ([ADR-0155](../adr/0155-retrieval-filters-apply-inside-each-retriever-and-the-answer-says-when-dense-search-did-not-run.md)).
 
 Because the CLI always configures this retriever when LanceDB opens, fast questions take this path; the ReAct loop runs when no deterministic retriever is available.
 
@@ -160,3 +161,4 @@ Answers follow the language of the user's question.
 - [ADR-0145](../adr/0145-live-status-reaches-the-routed-paths-as-retrieved-context.md): status questions are routed to a one-hop path with the live status report; web results are not given to the model without indexing.
 - [ADR-0152](../adr/0152-web-search-uses-only-allowed-search-apis-and-never-scrapes.md): web search only through the Tavily API with the user's key; no scraping fallback and no Serper.
 - [ADR-0157](../adr/0157-the-cross-encoder-is-always-on-discards-what-it-does-not-sco.md): Deep's per-chunk yes/no model call (`enable_reranker`, `RERANK_PROMPT`) is removed; the batch warning also says when the reranker could not run.
+- [ADR-0161](../adr/0161-automatic-mode-routes-by-evidence-and-the-keyword-classifier.md): the query classifier and its `bge-small-onnx` weights are removed; automatic mode routes by evidence.

@@ -8,7 +8,7 @@ subsystems: [model-catalog]
 supersedes: []
 superseded_by: []
 amends: []
-amended_by: [130]
+amended_by: [130, 161]
 ---
 
 # ADR-0118: Canonical Catalog of Verified Standalone ONNX Models and HTTP Resilience

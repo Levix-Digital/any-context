@@ -108,8 +108,8 @@ AnyContext provides a comprehensive command engine (`CommandEngine`) accessible 
 ### 3.3 Engine, Grounding & Retrieval Tuning
 - `/mode [strict|hybrid|proactive]`: Configures the active grounding strategy.
 - `/search [auto|fast|deep]`: Configures retrieval candidate depth:
-  - `auto`: Dynamically selects between Fast and Deep search based on query complexity.
-  - `fast`: Single-turn, sub-50ms dense vector search optimized for quick lookups.
+  - `auto` (default): Starts every question with the quick search and moves to deep research when the quick search finds nothing relevant, only loosely related excerpts, or excerpts that do not answer the question. The words of the question never choose the mode.
+  - `fast`: Pins the quick search: one retrieval and one answer, never escalated.
   - `deep`: Multi-turn reflexive hybrid search combining BM25 keyword matching, vector similarity, and Reciprocal Rank Fusion (RRF).
 - `/fast [query]`: Shortcut to run an immediate Fast search query.
 - `/deep [query]`: Shortcut to run an immediate Deep multi-turn reflexive search.
@@ -172,30 +172,28 @@ flowchart LR
     INPUT["Incoming File / Document"] --> ROUTE{"Document Type?"}
     ROUTE -->|Text / Markdown / Code| LAYA["Laya AI mmBERT INT8<br/>(~210 MB)<br/>Semantic Text Classifier"]
     ROUTE -->|Scanned PDF / Form| MOBILENET["MobileNetV4 RVL-CDIP<br/>(~18 MB)<br/>Visual Layout Classifier"]
-    ROUTE -->|User Search Query| BGE["BGE-Small Query Classifier<br/>(~33 MB)<br/>Intent & Depth Router"]
     
     LAYA --> LANCE["LanceDB Vector Chunks"]
     MOBILENET --> OCR["Tesseract / LayoutLMv3 Spatial Engine"]
-    BGE --> RETRIEVE["Hybrid BM25 + Dense RRF Search"]
 ```
 
 ### 5.2 Model Specifications
+No model classifies the user's question: automatic search mode always starts with the quick search and moves to deep research only when the evidence is not enough (nothing relevant found, only loosely related excerpts, or the model says the excerpts do not answer the question).
+
 1. **Laya AI (mmBERT INT8 ONNX - ~210 MB):**
    - Quantized multilingual BERT architecture optimized for CPU SIMD execution.
    - Classifies raw document chunks into semantic categories: source code, API reference, legal policy, configuration, or technical prose.
 2. **MobileNetV4 RVL-CDIP INT8 ONNX (~18 MB):**
    - High-speed visual document classifier trained on the RVL-CDIP dataset.
    - Distinguishes between scanned invoices, tax forms, scientific papers, memos, and handwritten notes.
-3. **BGE-Small Query Intent Classifier (~33 MB):**
-   - Analyzes incoming user queries in $< 2\text{ms}$ to determine whether Fast lexical search or Deep reflexive RAG is required.
-4. **Multimodal Vision Engine:**
+3. **Multimodal Vision Engine:**
    - Supports native multimodal inspection via Cloud/VPC models (Gemini 1.5 Pro, GPT-4o) alongside local CLIP ViT ONNX embeddings for embedded charts, diagrams, and figures.
 
 ### 5.3 ADR-110 Zero-Breakage Guarantee & Fallback Engine
 AnyContext enforces the **ADR-110 Invariant**:
 > **Zero-Breakage Guarantee:** The absence, corruption, or incomplete download of local ONNX models must never crash or block AnyContext.
 - When model weights are absent or downloading in the background, AnyContext falls back instantly to **Pure Rust Deterministic Heuristics**.
-- The fallback heuristic classifies documents and routes queries in under $1\mu\text{s}$ using 0 MB of extra memory, ensuring 100% uninterrupted operation.
+- The fallback heuristic classifies documents in under $1\mu\text{s}$ using 0 MB of extra memory, ensuring 100% uninterrupted operation.
 
 ---
 
@@ -296,11 +294,11 @@ AnyContext v0.37.0 introduces an instantaneous (<5ms) physical hardware profiler
 
 ### 8.2 Canonical Model Profiles (Kit de Models)
 1. **🌌 Air-Gapped Power (Optimal on $\ge 16\text{ GB}$ RAM):**
-   - Models: `mobilenetv4`, `clip-vit`, `layoutlmv3`, `bge-small`, `laya-int8` (~740 MB total disk).
-   - Autonomous offline document AI, scan sentinel, layout analysis, and query classification.
+   - Models: `mobilenetv4`, `clip-vit`, `layoutlmv3`, `laya-int8` (~613 MB total disk).
+   - Autonomous offline document AI, scan sentinel and layout analysis.
 2. **⚡ Smart Balanced (Optimal on $8\text{ GB}$ RAM):**
-   - Models: `mobilenetv4`, `layoutlmv3`, `bge-small` (~252 MB total disk).
-   - High cost-benefit query routing and scan detection.
+   - Models: `mobilenetv4`, `layoutlmv3` (~125 MB total disk).
+   - High cost-benefit scan detection.
 3. **🟢 Lite / Fast-Path (Default on $< 8\text{ GB}$ RAM or CI/VMs):**
    - 0 MB extra downloads; 100% pure Rust deterministic heuristics (<1µs cold start, <45 MB RAM).
 

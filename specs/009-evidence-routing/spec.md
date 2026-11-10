@@ -60,7 +60,7 @@ In automatic mode, when Fast found relevant excerpts but they do not hold the an
 1. **Given** automatic mode, a Deep engine and sufficient Fast evidence, **When** the Fast answer starts with the signal, **Then** no Fast token is shown, an escalation event with the reason "the quick search excerpts do not answer the question" is sent, and Deep answers.
 2. **Given** automatic mode and a Fast answer that does not start with the signal, **When** it streams, **Then** the tokens reach the user as today (held back only until they cannot be the signal).
 3. **Given** Fast pinned, or automatic mode without a Deep engine, **When** the Fast prompt is built, **Then** it carries no signal rule, and the LLM says in its own words what the excerpts do not answer.
-4. **Given** the signal appears later in an answer, **When** the answer is shown or stored, **Then** the signal text is removed and there is no escalation.
+4. **Given** the signal appears later in an answer, **When** the answer is returned or stored, **Then** the signal text is removed and there is no escalation (the streamed tokens are already shown; the rule tells the model never to write it there).
 5. **Given** an escalated question, **When** the history is stored, **Then** it keeps the question and the Deep answer only, not the Fast attempt.
 
 ---
@@ -114,7 +114,7 @@ The query classifier weights are removed from the model catalog and from the har
 - **FR-002**: The keyword and length classifier, the query intent, the complexity and confidence values, and the heuristic query classifier with its adapter MUST be removed.
 - **FR-003**: In automatic mode with a Deep engine and sufficient Fast evidence, the Fast prompt MUST carry a rule asking the LLM to reply only with a fixed signal when the excerpts do not contain the answer.
 - **FR-004**: A Fast answer that starts with the signal MUST escalate to Deep with an escalation event, and MUST NOT show any Fast token or store the Fast attempt.
-- **FR-005**: The signal text MUST never reach the user or the session history.
+- **FR-005**: A signal at the start of the answer MUST never reach the user or the session history; a later occurrence MUST be removed from the returned and stored answer.
 - **FR-006**: Fast pinned MUST NOT escalate and MUST NOT carry the signal rule; Deep pinned MUST always run Deep.
 - **FR-007**: The routing indicator MUST show the route (quick search, deep search or live status) and whether it was pinned or automatic, without domain or confidence.
 - **FR-008**: The query classifier weights MUST be removed from the model catalog, the hardware kits, the installer list and the model menu.

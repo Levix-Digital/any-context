@@ -13,7 +13,7 @@ Local neural inference on ONNX Runtime (the text embedding model and the cross-e
 - Load the ONNX Runtime shared library lazily and run inference sessions on the CPU.
 - Embed texts with the local embedding model used by [ingestion](ingestion.md) and [retrieval](retrieval.md).
 - Score `(query, document)` pairs with the cross-encoder re-ranker used by Stage 2 of [retrieval](retrieval.md).
-- Provide the query classifier, scan sentinel, layout extractor and vision encoder components, which today are deterministic heuristics.
+- Provide the scan sentinel, layout extractor and vision encoder components, which today are deterministic heuristics.
 - Model execution devices and Gemma 4 tiers for the surfaces that display them.
 - Never break the caller: for the re-ranker and the heuristic components, a missing library, missing weights or a failed load always degrade to the non-neural path; for the re-ranker, [retrieval](retrieval.md) then keeps the fusion order and the answer says why (ADR-0157). The embedder is the exception: it returns the error, because embeddings never fall back (ADR-0154).
 
@@ -68,7 +68,6 @@ Cargo features: `runtime = ["dep:ort", "dep:tokenizers"]` (off by default in thi
 
 ### Heuristic components
 
-- **Query classifier**: a keyword and structure heuristic (sub-microsecond) that returns a complexity (fast or deep) and an intent; it is used by the agent's `ChatModelRouter` through `OnnxComplexityClassifierAdapter`. The BGE-Small weights are tracked but not executed.
 - **Scan sentinel**: decides whether a page is a scan from 2D text density.
 - **Layout extractor**: passes content through; layout reconstruction is done by the core's spatial chunkers.
 - **Vision encoder**: produces no synthetic description.
@@ -81,7 +80,7 @@ These components report their status as `heuristic` and never claim to be neural
 
 ## Interfaces
 
-- **Called by**: [ingestion](ingestion.md) and [retrieval](retrieval.md) (`OnnxEmbedder` behind the core's `LocalEmbeddingProvider`), [retrieval](retrieval.md) (`OnnxReranker` in `NativeHybridPipeline`), the [CLI](cli.md) (`create_default_reranker`, `--device`, `--rerank-model`), the [TUI](tui.md) (re-ranker and device badges), the [agent](agent.md) (query classifier through the core adapter), [language model providers](lm-providers.md) (`GemmaOnnxProvider` uses `OnnxGemmaEngine` and always falls back).
+- **Called by**: [ingestion](ingestion.md) and [retrieval](retrieval.md) (`OnnxEmbedder` behind the core's `LocalEmbeddingProvider`), [retrieval](retrieval.md) (`OnnxReranker` in `NativeHybridPipeline`), the [CLI](cli.md) (`create_default_reranker`, `--device`, `--rerank-model`), the [TUI](tui.md) (re-ranker and device badges), [language model providers](lm-providers.md) (`GemmaOnnxProvider` uses `OnnxGemmaEngine` and always falls back).
 - **Depends on**: the ONNX Runtime shared library shipped by the release (see [CI and Release](ci-release.md)) and the model files downloaded by the [model catalog](model-catalog.md) or provisioned by the [installer](installer.md).
 
 ## Decisions
@@ -92,3 +91,4 @@ These components report their status as `heuristic` and never claim to be neural
 - [ADR-0129](../adr/0129-two-stage-retrieval-cross-encoder-reranking.md): `OnnxReranker` with `score_batch` and `score_pair`.
 - [ADR-0130](../adr/0130-real-onnx-runtime-multilingual-cross-encoder.md): real ONNX Runtime with `load-dynamic`, CPU only, multilingual cross-encoder, heuristic components reported honestly, Gemma 4 planned.
 - [ADR-0154](../adr/0154-local-embedding-model-with-its-own-setting-and-no-fallback.md): `OnnxEmbedder`, the local embedding model.
+- [ADR-0161](../adr/0161-automatic-mode-routes-by-evidence-and-the-keyword-classifier.md): the query classifier and its `bge-small-onnx` weights are removed; automatic mode routes by evidence.

@@ -22,7 +22,7 @@ The keyword and length classifier that picks Fast or Deep before the search is r
 
 **Project Type**: desktop CLI/TUI application with a Rust core library
 
-**Performance Goals**: questions the classifier sent to Deep now take one Fast call when one excerpt answers them; normal Fast answers wait at most the signal's length (26 characters) before the first token is shown.
+**Performance Goals**: questions the classifier sent to Deep now take one Fast call when one excerpt answers them; normal Fast answers wait at most the signal's length (28 characters) before the first token is shown.
 
 **Constraints**: no reindex; retrieval output unchanged.
 

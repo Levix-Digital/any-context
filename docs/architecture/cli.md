@@ -65,7 +65,6 @@ The headless path resolves grounding mode, search mode and web search from the w
 4. Builds `search_db` and `system_status` (its report comes from `workspace_status_report`), and `web_search` when web search is enabled, derives the ReAct system prompt from their names (`PromptPath::Tools`) and registers them (see [Agent Runtime](agent.md)).
 5. Sets the execution mode (`DeepSearch` for `/search deep`, otherwise `ReAct`), the search policy and `max_turns(10)`.
 6. Resolves the query embedding once (`resolve_query_embedding`, which calls `ingestion::resolve_query_embedding` and `ingestion::global_dense_enabled` and returns a `QueryEmbedding`: provider, target, query prefix, and whether `Global` takes part in dense search) and plugs in `PipelineBatchRetriever` (Deep Search), `PipelineDeterministicRetriever` (one-hop RAG) and `PipelineStatusRetriever` (status questions: the same search plus the live status report, ADR-0145) when LanceDB opens; they and `search_db` use the [retrieval pipeline](retrieval.md) with that embedding (`QueryEmbedding::apply`) and the `rerank_mode` setting.
-7. Attaches the `ChatModelRouter` with the query classifier adapter.
 
 ### Startup and self-knowledge
 

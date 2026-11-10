@@ -112,7 +112,7 @@ If the embedding provider fails during a sync (an invalid key, a rate limit, a n
 | `/mode strict` | Answer only from the workspace's documents (default) |
 | `/mode hybrid` | Workspace facts first, then clearly labeled general knowledge |
 | `/mode proactive` | Combine documents, web results and general knowledge, each labeled |
-| `/search auto` | Choose quick or deep research per question (default); a quick search that finds no relevant excerpt moves on to deep research |
+| `/search auto` | Start every question with a quick search (default); it moves on to deep research when it finds no relevant excerpt, only loosely related ones, or excerpts that do not answer the question |
 | `/search fast`, `/search deep` | Always use quick answers or deep research |
 | `/fast <question>`, `/deep <question>` | Use one mode for a single question |
 | `/web-search on` / `off` | Allow live web search for this workspace |
