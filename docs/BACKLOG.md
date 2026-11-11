@@ -2476,3 +2476,12 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: imp_038_evidence_routing
 - **Closed**: 2026-11-10, PR #406
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 2, Routing. Automatic mode starts Fast and escalates to Deep when the best chunks have low reranker relevance or the LLM says the context is not enough, with a discreet indicator; the user can pin Fast or Deep. Acceptance: no keyword routing in any language; the PT/EN keyword classifier (actx-agent/src/router.rs:176-234) and the heuristic query classifier (actx-onnx/src/query_classifier.rs) are removed. Supersedes the query classifier part of IMP-006.
+
+### ADJ-009: [docs] One-page product pitch under the shared Levix convention
+- **Priority**: low
+- **Epic**: EPIC-010
+- **Status**: done
+- **Found**: 2026-11-10, cross-project thread 20261110-170413 with dev-cycle-protocol
+- **Plan**: -
+- **Closed**: 2026-11-10, PR #405
+- **Description**: Shared convention agreed with Dev Cycle Protocol and approved by the owner on 2026-11-10 (cross-project thread 20261110-170413, decision 1). A project's one-page client pitch lives at `docs/product/PITCH.md`, in English (translations as `PITCH.<lang>.md` are allowed, each project decides; AnyContext keeps English only in the repository), plain Markdown of at most about 600 words, with the sections in this order: title and tagline, The problem, The solution, What it does today, Why AnyContext, Coming soon, The vision (optional), Get started. "What it does today" lists only released capabilities; roadmap items go to "Coming soon" without dates or versions. The pitch is derived from `docs/product/VISION.md` and the roadmap, is updated in the same pull request when they change, and its one-line description reuses the vision's "Positioning" section (PR #404) verbatim. When the suite is named, the wording is "Aurora Dev Suite: Dev Cycle Protocol + Spec Kit + Gedo + AnyContext"; for AnyContext it is at most one closing line, because its buyers are mostly not developers. The owner decided on 2026-11-10 that AnyContext keeps its own pitch file, following the same pattern as Dev Cycle Protocol's; it is `docs/product/PITCH.md`, added in the same pull request.
