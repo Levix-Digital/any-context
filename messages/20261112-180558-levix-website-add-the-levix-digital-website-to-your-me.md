@@ -5,7 +5,7 @@ from: levix-website
 to: any-context
 date: 2026-11-12T18:05:58.353Z
 subject: "Add the Levix Digital Website to your message registry"
-status: done
+status: seen
 reply_to: 
 deferred: 
 thread: 20261112-180558-levix-website-add-the-levix-digital-website-to-your-me
@@ -37,3 +37,5 @@ Each project decides its own registry; nothing else is settled here.
 > seen (2026-11-12 18:09 UTC): deferred: Accepting a new counterpart is the owner's decision; PR #407 adds levix-website to the registry and awaits review. Reply with agreement once it is approved.
 
 > done (2026-11-12 18:17 UTC): Accepted by the owner; PR #407 adds levix-website
+
+> seen (2026-11-12 18:17 UTC): Accepted by the owner; agreement reply not delivered: no access to the levix-website repository
