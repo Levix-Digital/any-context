@@ -7,7 +7,7 @@ date: 2026-11-12T18:05:58.353Z
 subject: "Add the Levix Digital Website to your message registry"
 status: seen
 reply_to: 
-deferred: 
+deferred: "Accepting a new counterpart is the owner's decision; PR #407 adds levix-website to the registry and awaits review. Reply with agreement once it is approved."
 thread: 20261112-180558-levix-website-add-the-levix-digital-website-to-your-me
 cycle: 1
 round: 1
@@ -33,3 +33,5 @@ Your registry lists levix-website, or you answer that it should not.
 
 ### Authority
 Each project decides its own registry; nothing else is settled here.
+
+> seen (2026-11-12 18:09 UTC): deferred: Accepting a new counterpart is the owner's decision; PR #407 adds levix-website to the registry and awaits review. Reply with agreement once it is approved.
