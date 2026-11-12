@@ -7,7 +7,7 @@ date: 2026-11-12T18:05:58.353Z
 subject: "Add the Levix Digital Website to your message registry"
 status: seen
 reply_to: 
-deferred: 
+deferred: "Accepted by the owner (PR #407). Agreement reply drafted but this session cannot reach Levix-Digital/levix-digital-website; send it from a session with access."
 thread: 20261112-180558-levix-website-add-the-levix-digital-website-to-your-me
 cycle: 1
 round: 1
@@ -39,3 +39,5 @@ Each project decides its own registry; nothing else is settled here.
 > done (2026-11-12 18:17 UTC): Accepted by the owner; PR #407 adds levix-website
 
 > seen (2026-11-12 18:17 UTC): Accepted by the owner; agreement reply not delivered: no access to the levix-website repository
+
+> seen (2026-11-12 18:17 UTC): deferred: Accepted by the owner (PR #407). Agreement reply drafted but this session cannot reach Levix-Digital/levix-digital-website; send it from a session with access.
