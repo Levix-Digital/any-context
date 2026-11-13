@@ -480,13 +480,13 @@ async fn test_status_question_takes_the_status_retriever_in_stream() {
         assert_eq!(status_calls.lock().unwrap().len(), 1, "{search:?}");
         assert!(fast_calls.lock().unwrap().is_empty(), "{search:?}");
 
-        let mut intent_seen = None;
+        let mut route_seen = None;
         while let Ok(evt) = rx.try_recv() {
-            if let AgentEvent::RoutingDecision { intent, .. } = evt {
-                intent_seen = Some(intent);
+            if let AgentEvent::RoutingDecision { route, .. } = evt {
+                route_seen = Some(route);
             }
         }
-        assert_eq!(intent_seen.as_deref(), Some("system_status"));
+        assert_eq!(route_seen.as_deref(), Some("status"));
     }
 }
 

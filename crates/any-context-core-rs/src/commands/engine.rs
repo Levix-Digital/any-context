@@ -253,7 +253,7 @@ impl CommandEngine {
                 return CommandResult::success(format!(
                     "🔍 Active Search Retrieval Depth for '{}': **{}**\n\n\
                      Available Search Retrieval Depth modes:\n\
-                     • `auto` (or `a`): Autonomously selects single-turn or reflexive deep search by complexity.\n\
+                     • `auto` (or `a`): Quick search first, deep search when the evidence is not enough.\n\
                      • `fast` (or `f`): Single-turn low-latency hybrid RAG retrieval (<50ms).\n\
                      • `deep` (or `d`): Multi-turn reflexive reasoning with orthogonal sub-query decomposition (RFC-042).\n\n\
                      Usage: /search <auto|fast|deep>",
@@ -271,8 +271,8 @@ impl CommandEngine {
                 updates.search_mode = Some(valid_str.to_string());
 
                 let explanation = match parsed {
-                    SearchDepthMode::Auto => "• Autonomous ModelRouter: evaluates each prompt in sub-1ms and routes to Fast RAG or Deep Search.",
-                    SearchDepthMode::Fast => "• Fast RAG: forced single-turn low-latency hybrid retrieval (<50ms).",
+                    SearchDepthMode::Auto => "• Automatic: every question starts with the quick search and moves to deep search when the evidence is not enough.",
+                    SearchDepthMode::Fast => "• Fast: quick search pinned; one retrieval and one answer, never escalated.",
                     SearchDepthMode::Deep => "• Deep Search: forced multi-turn reflexive reasoning with orthogonal decomposition (RFC-042).",
                 };
 
@@ -291,7 +291,7 @@ impl CommandEngine {
                 CommandResult::error(format!(
                     "Invalid search mode '{}'.\n\
                      Available Search Retrieval Depth modes:\n\
-                     • `auto` (or `a`): Autonomously selects single-turn or reflexive deep search by complexity.\n\
+                     • `auto` (or `a`): Quick search first, deep search when the evidence is not enough.\n\
                      • `fast` (or `f`): Single-turn low-latency hybrid RAG retrieval (<50ms).\n\
                      • `deep` (or `d`): Multi-turn reflexive reasoning with orthogonal sub-query decomposition (RFC-042).\n\
                      Usage: /search <auto|fast|deep>",
@@ -312,18 +312,15 @@ impl CommandEngine {
             .unwrap_or_else(|| "auto".to_string());
 
         CommandResult::success(format!(
-            "🧭 Chat ModelRouter Status (Workspace '{}'):\n\
-             • Active Search Depth Policy: **{}**\n\
-             • Classifier: Deterministic Multilingual Semantic Classifier (<1µs on CPU)\n\
-             • Triage Engine: Fast RAG vs Deep Search (RFC-042)\n\
-             • Domain Intent Detection: Code, Architecture, Document, General\n\
-             • Routing SLA: Sub-1ms, zero token cost\n\
+            "🧭 Routing (workspace '{}'):\n\
+             • Search mode: **{}**\n\
+             • Automatic mode starts every question with the quick search and moves to deep search when the quick search finds nothing relevant, only possibly related excerpts, or excerpts that do not answer the question.\n\
+             • The question's words never choose the mode; live status questions go to the status report.\n\
              Usage:\n\
-             • `/search auto`: Enable autonomous query complexity routing.\n\
-             • `/search fast`: Force Fast RAG mode for all queries.\n\
-             • `/search deep`: Force Deep Search mode for all queries.\n\
-             • `/fast <query>`: Shortcut to run a single query in Fast RAG mode.\n\
-             • `/deep <query>`: Shortcut to run a single query in Deep Search mode.",
+             • `/search auto`: quick search first, deep search when the evidence is not enough.\n\
+             • `/search fast`: pin the quick search; it never escalates.\n\
+             • `/search deep`: pin deep search for every question.\n\
+             • `/fast` and `/deep`: shortcuts for `/search fast` and `/search deep`.",
             ctx.active_workspace,
             curr.to_uppercase()
         ))

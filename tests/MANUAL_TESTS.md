@@ -442,13 +442,14 @@ How to record a run: in each test of the current run, mark exactly one box of th
 
 ### MT-ANS-002: Quick answers and deep research
 
-- **Covers**: query routing, Deep Search
+- **Covers**: routing by search mode, Deep Search
 - **Prerequisites**: an indexed code or documentation workspace
 - **Steps**:
   1. With `/search auto`, ask a short factual question, then a broad comparison question.
-  2. Open the reasoning panel with `Ctrl+T` during the second answer.
+  2. Run `/search deep`, open the reasoning panel with `Ctrl+T` and ask the comparison question again.
 - **Expected**:
-  - The first shows the Fast RAG route and streams quickly; the second shows the Deep Search route, its sub-questions and iterations in the panel, and a combined answer that cites source files like the fast answer.
+  - Step 1: both show `⚡ [Quick search] (automatic)`; the words of the question do not choose Deep Search.
+  - Step 2: the panel shows `🧠 [Deep search] (pinned)`, its sub-questions and iterations, and a combined answer that cites source files like the quick answer.
   - With strict grounding, a deep question the workspace cannot answer gets a "not found in the workspace" answer instead of general knowledge.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
@@ -635,6 +636,25 @@ How to record a run: in each test of the current run, mark exactly one box of th
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:
 
+### MT-ANS-015: Automatic mode routes by evidence, not by the question's words
+
+- **Covers**: routing by search mode, the model's not-enough signal, pinned modes (IMP-038)
+- **Prerequisites**: the re-ranker installed; a workspace with the travel policy file of MT-ANS-013 and nothing else, in strict mode; a cloud chat model
+- **Steps**:
+  1. With `/search auto` and the reasoning panel open (`Ctrl+T`), ask a long comparative question whose answer is in one rule: "Compare in detail, end to end, the daily meal allowance for domestic trips versus the limits for international trips, and explain the whole approval lifecycle".
+  2. Ask a question on the policy's topic whose fact the policy does not hold: "What is the reimbursement limit for business-class train tickets?"
+  3. Ask the same question as step 2 after `/search fast`.
+  4. Ask "is everything indexed yet?" with `/search auto`, then with `/search deep`.
+  5. Open the menu, Document AI.
+- **Expected**:
+  - Step 1: the panel shows `⚡ [Quick search] (automatic)` and no escalation; the answer comes from the quick search.
+  - Step 2: the panel shows `↗ [Escalated to Deep Search]: the quick search excerpts do not answer the question` (or the weak-evidence reason of MT-ANS-014), then the Deep Search steps; no part of a quick answer and no `[[ACTX_NEEDS_DEEPER_SEARCH]]` text appears in the chat.
+  - Step 3: `⚡ [Quick search] (pinned)`, no escalation; the answer says the policy does not cover it.
+  - Step 4: `📊 [Live status]` in both modes.
+  - Step 5: there is no Query Routing entry and no BGE-Small download.
+- **Result**: [ ] Pass [ ] Fail [ ] Blocked
+- **Notes**:
+
 ## Local Re-Ranking and Models
 
 ### MT-MOD-001: The local re-ranker is always on and reports its state
@@ -750,7 +770,7 @@ How to record a run: in each test of the current run, mark exactly one box of th
   4. After the sync finishes, ask question 2 again.
 - **Expected**:
   - The first answer explains `/web` from the built-in manual.
-  - Questions 2 and 3 show the `📊 [ModelRouter: Live Status]` routing badge (domain System Status) and report the live sync progress (item and stage) and the indexed chunk count, in every search mode, with no "No information or documents matching the query" message.
+  - Questions 2 and 3 show the `📊 [Live status]` routing line and report the live sync progress (item and stage) and the indexed chunk count, in every search mode, with no "No information or documents matching the query" message.
   - Question 4 reports that the workspace is up to date.
 - **Result**: [ ] Pass [ ] Fail [ ] Blocked
 - **Notes**:

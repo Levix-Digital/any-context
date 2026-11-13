@@ -364,25 +364,14 @@ pub async fn run_headless(args: CliArgs) -> Result<(), Box<dyn std::error::Error
                     println!("{}", theme.ansi_primary(&format!("✔ [Tool Done: {}]", name)));
                 }
             }
-            AgentEvent::RoutingDecision { mode, complexity, intent, confidence, reason } => {
-                let badge = if intent == "system_status" {
-                    theme.ansi_warning("📊 [ModelRouter: Live Status]")
-                } else if complexity == "Deep" || mode.contains("DeepSearch") {
-                    theme.ansi_reasoning("🧠 [ModelRouter: Deep Search]")
-                } else {
-                    theme.ansi_warning("⚡ [ModelRouter: Fast RAG]")
+            AgentEvent::RoutingDecision { route, pinned, reason } => {
+                let badge = match route.as_str() {
+                    "status" => theme.ansi_warning("📊 [Live status]"),
+                    "deep" => theme.ansi_reasoning("🧠 [Deep search]"),
+                    _ => theme.ansi_warning("⚡ [Quick search]"),
                 };
-                let intent_display = match intent.as_str() {
-                    "code" => "Code & Syntax",
-                    "architecture" => "Architecture & Topology",
-                    "devops_infra" => "DevOps & Infrastructure",
-                    "data_schema" => "Data & Schema",
-                    "security_audit" => "Security & Audit",
-                    "document" => "Document & Business",
-                    "system_status" => "System Status",
-                    _ => "General & Concepts",
-                };
-                println!("{} \x1b[2m(Domain: {}, confidence: {:.0}%)\x1b[0m\n\x1b[2m  • {}\x1b[0m\n", badge, intent_display, confidence * 100.0, reason);
+                let how = if pinned { "pinned" } else { "automatic" };
+                println!("{} \x1b[2m({})\x1b[0m\n\x1b[2m  • {}\x1b[0m\n", badge, how, reason);
             }
             AgentEvent::Decomposition { sub_queries } => {
                 if in_thinking {

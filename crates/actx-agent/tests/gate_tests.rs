@@ -122,7 +122,7 @@ fn build(mode: SearchMode, fast: Found, deep: Vec<RetrievedChunk>, store: Option
     (builder.build_sync().unwrap(), provider)
 }
 
-// A short question routes to Fast in automatic mode (keyword classifier, until IMP-038).
+// Automatic mode starts every question with the quick search (IMP-038).
 const QUESTION: &str = "where is the timeout set?";
 
 async fn streamed(agent: &Agent) -> (Vec<String>, AgentResponse) {

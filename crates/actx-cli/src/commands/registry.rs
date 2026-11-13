@@ -193,7 +193,7 @@ pub const DEFAULT_SLASH_COMMANDS: &[SlashCommand] = &[
     SlashCommand {
         name: "router",
         aliases: &["routing"],
-        description: "Inspects Chat ModelRouter policy, complexity thresholds, and intent triage",
+        description: "Shows the search mode and how automatic mode moves from quick to deep search",
         usage: "/router",
         category: "RAG",
     },

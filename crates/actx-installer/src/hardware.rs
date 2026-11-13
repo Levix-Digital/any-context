@@ -102,7 +102,7 @@ pub struct ModelDownloadSpec {
 }
 
 /// Document AI weights (their components currently run deterministic heuristics).
-pub static ALL_MODELS: [ModelDownloadSpec; 5] = [
+pub static ALL_MODELS: [ModelDownloadSpec; 4] = [
     ModelDownloadSpec {
         id: "mobilenetv4-rvl-cdip",
         file_name: "mobilenetv4_rvl_cdip.onnx",
@@ -118,14 +118,6 @@ pub static ALL_MODELS: [ModelDownloadSpec; 5] = [
         download_url: "https://huggingface.co/onnx-community/layoutlmv3-base-ONNX/resolve/43d4a6517dc9b9a5eb3d538a158161ead8d028b9/onnx/model_int8.onnx",
         sha256: "5f75612d2c2cd3b23826b7fcbed33e11f39d6acda1fe66fa091a0392b18a9013",
         description: "Layout extraction weights",
-    },
-    ModelDownloadSpec {
-        id: "bge-small-onnx",
-        file_name: "bge_small_query_int8.onnx",
-        size_bytes: 133_093_490,
-        download_url: "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/onnx/model.onnx",
-        sha256: "828e1496d7fabb79cfa4dcd84fa38625c0d3d21da474a00f08db0f559940cf35",
-        description: "Query routing weights",
     },
     ModelDownloadSpec {
         id: "clip-vit-int8",
@@ -228,23 +220,23 @@ pub static BGE_M3_FILES: [ModelDownloadSpec; 2] = [
 
 // Gemma 4 local generation is planned (ADR-130): no profile downloads Gemma weights.
 
-pub static SOVEREIGN_MODELS: [ModelDownloadSpec; 9] = [
-    ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2], ALL_MODELS[3], ALL_MODELS[4],
+pub static SOVEREIGN_MODELS: [ModelDownloadSpec; 8] = [
+    ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2], ALL_MODELS[3],
     RERANKER_FILES[0], RERANKER_FILES[1], BGE_M3_FILES[0], BGE_M3_FILES[1],
 ];
 
-pub static WORKSTATION_MODELS: [ModelDownloadSpec; 9] = [
-    ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2], ALL_MODELS[3], ALL_MODELS[4],
+pub static WORKSTATION_MODELS: [ModelDownloadSpec; 8] = [
+    ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2], ALL_MODELS[3],
     RERANKER_FILES[0], RERANKER_FILES[1], BGE_M3_FILES[0], BGE_M3_FILES[1],
 ];
 
-pub static POWER_MODELS: [ModelDownloadSpec; 9] = [
-    ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2], ALL_MODELS[3], ALL_MODELS[4],
+pub static POWER_MODELS: [ModelDownloadSpec; 8] = [
+    ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2], ALL_MODELS[3],
     RERANKER_FILES[0], RERANKER_FILES[1], BGE_M3_FILES[0], BGE_M3_FILES[1],
 ];
 
-pub static BALANCED_MODELS: [ModelDownloadSpec; 7] = [
-    ALL_MODELS[0], ALL_MODELS[1], ALL_MODELS[2],
+pub static BALANCED_MODELS: [ModelDownloadSpec; 6] = [
+    ALL_MODELS[0], ALL_MODELS[1],
     RERANKER_FILES[0], RERANKER_FILES[1], E5_BASE_FILES[0], E5_BASE_FILES[1],
 ];
 
@@ -612,11 +604,14 @@ mod tests {
         assert_eq!(InstallerProfileTier::parse_str("none"), Some(InstallerProfileTier::Lite));
         assert_eq!(InstallerProfileTier::parse_str("unknown_xyz"), None);
 
-        assert_eq!(InstallerProfileTier::SovereignUltra.target_models().len(), 9);
-        assert_eq!(InstallerProfileTier::WorkstationPro.target_models().len(), 9);
-        assert_eq!(InstallerProfileTier::AirGappedPower.target_models().len(), 9);
-        assert_eq!(InstallerProfileTier::SmartBalanced.target_models().len(), 7);
+        assert_eq!(InstallerProfileTier::SovereignUltra.target_models().len(), 8);
+        assert_eq!(InstallerProfileTier::WorkstationPro.target_models().len(), 8);
+        assert_eq!(InstallerProfileTier::AirGappedPower.target_models().len(), 8);
+        assert_eq!(InstallerProfileTier::SmartBalanced.target_models().len(), 6);
         assert_eq!(InstallerProfileTier::Lite.target_models().len(), 2);
+        for tier in [InstallerProfileTier::SovereignUltra, InstallerProfileTier::WorkstationPro, InstallerProfileTier::AirGappedPower, InstallerProfileTier::SmartBalanced, InstallerProfileTier::Lite] {
+            assert!(tier.target_models().iter().all(|m| m.id != "bge-small-onnx"), "query classifier weights removed (IMP-038)");
+        }
     }
 
     #[test]

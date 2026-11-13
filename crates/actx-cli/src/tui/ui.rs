@@ -274,9 +274,9 @@ fn render_accordion(frame: &mut Frame, area: Rect, app: &mut App, theme: &UiThem
     let mut lines: Vec<Line> = Vec::new();
     for l in content.lines() {
         let trimmed = l.trim();
-        let styled_line = if trimmed.starts_with("🧠") || trimmed.contains("[ModelRouter: Deep Search]") {
+        let styled_line = if trimmed.starts_with("🧠") || trimmed.contains("[Deep search]") {
             Line::from(Span::styled(l, Style::default().fg(theme.reasoning).add_modifier(Modifier::BOLD)))
-        } else if trimmed.starts_with("⚡") || trimmed.contains("[ModelRouter: Fast RAG]") {
+        } else if trimmed.starts_with("⚡") || trimmed.contains("[Quick search]") {
             Line::from(Span::styled(l, Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)))
         } else if trimmed.starts_with("• Reason:") || trimmed.contains("Intent:") {
             Line::from(Span::styled(l, Style::default().fg(theme.text_muted)))

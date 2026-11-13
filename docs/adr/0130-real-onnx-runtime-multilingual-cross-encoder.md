@@ -8,7 +8,7 @@ subsystems: [onnx, retrieval, model-catalog, installer, ci-release]
 supersedes: []
 superseded_by: []
 amends: [118, 123, 125, 127, 129]
-amended_by: []
+amended_by: [161]
 ---
 
 # ADR-0130: Real ONNX Runtime (ort load-dynamic), Multilingual mmarco Cross-Encoder and Rectification of ADRs 118/123/125/127/129

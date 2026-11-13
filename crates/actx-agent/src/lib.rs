@@ -6,6 +6,7 @@
 
 pub mod config;
 pub mod deep_search;
+pub mod escalation;
 pub mod error;
 pub mod events;
 pub mod fsm;
@@ -22,10 +23,7 @@ pub use deep_search::{
 pub use error::{AgentError, ToolError};
 pub use events::{event_channel, AgentEvent, EventReceiver, EventSender};
 pub use fsm::{AgentResponse, ReActOrchestrator};
-pub use router::{
-    ChatModelRouter, ChatRouterConfig, ComplexityClassifier, QueryComplexity, QueryIntent,
-    RoutingDecision,
-};
+pub use router::{Route, RouteDecision};
 pub use session::{InMemorySessionStore, SessionStore, SqliteSessionStore};
 pub use tool::{NativeTool, Tool, ToolRegistry};
 
@@ -145,7 +143,8 @@ impl DeepSearchRetriever for ToolBasedRetriever {
     }
 }
 
-/// High-level unified agent interface supporting ReAct, DeepSearch, and dynamic ChatModelRouter
+/// High-level unified agent interface: quick search, Deep Search, live status and the tool-calling path,
+/// routed by the search mode and escalated on evidence (IMP-038)
 #[derive(Clone)]
 pub struct Agent {
     orchestrator: Arc<ReActOrchestrator>,
@@ -154,18 +153,12 @@ pub struct Agent {
     status_retriever: Option<Arc<dyn DeterministicRetriever>>,
     execution_mode: AgentExecutionMode,
     search_mode: SearchMode,
-    router: Arc<ChatModelRouter>,
 }
 
 impl Agent {
     /// Create a fluent builder to configure an agent
     pub fn builder() -> AgentBuilder {
         AgentBuilder::default()
-    }
-
-    /// Access the active ChatModelRouter
-    pub fn router(&self) -> &ChatModelRouter {
-        &self.router
     }
 
     /// Access the active SearchMode policy
@@ -180,49 +173,46 @@ impl Agent {
 
     /// Execute the agent synchronously/asynchronously to completion with dynamic routing
     pub async fn run(&self, input: &str, session_id: Option<&str>) -> Result<AgentResponse, AgentError> {
-        let decision = self.router.evaluate(input, self.search_mode);
-        if let Some(retriever) = self.status_route(&decision) {
-            return self.run_one_hop(retriever, input, session_id).await;
-        }
-        if decision.mode == AgentExecutionMode::DeepSearch {
-            if let Some(ref dso) = self.deep_search_orchestrator {
-                return dso.run(input, session_id, None).await;
+        match self.route(input).route {
+            Route::Status => {
+                if let Some(retriever) = self.status_retriever.clone() {
+                    return self.run_one_hop(retriever, input, session_id).await;
+                }
             }
-        } else if let Some(retriever) = self.fast_route(&decision) {
-            let output = retriever.retrieve_and_format(input).await?;
-            if let (Some(dso), Some(_)) = (self.escalation_target(), escalation_reason(&output)) {
-                return dso.run(input, session_id, None).await;
+            Route::Deep => {
+                if let Some(ref dso) = self.deep_search_orchestrator {
+                    return dso.run(input, session_id, None).await;
+                }
             }
-            return self.answer_one_hop(output, input, session_id).await;
+            Route::Fast => {
+                if let Some(retriever) = self.deterministic_retriever.clone() {
+                    let output = retriever.retrieve_and_format(input).await?;
+                    let escalation = self.escalation_target();
+                    if let (Some(dso), Some(_)) = (escalation.as_ref(), escalation_reason(&output)) {
+                        return dso.run(input, session_id, None).await;
+                    }
+                    return self.answer_one_hop(output, input, session_id, escalation).await;
+                }
+            }
         }
         self.orchestrator.run(input, session_id, None).await
     }
 
-    /// The Deep Search engine a Fast route escalates to: only in automatic mode (IMP-046).
+    /// The route of a question (IMP-038): from the search mode only, plus the live status
+    /// route when a status retriever is configured.
+    pub fn route(&self, input: &str) -> RouteDecision {
+        let decision = router::route(input, self.search_mode);
+        if decision.route == Route::Status && self.status_retriever.is_none() {
+            router::mode_route(self.search_mode)
+        } else {
+            decision
+        }
+    }
+
+    /// The Deep Search engine a Fast route escalates to: only in automatic mode (IMP-046, IMP-038).
     fn escalation_target(&self) -> Option<Arc<DeepSearchOrchestrator>> {
         if self.search_mode == SearchMode::Auto {
             self.deep_search_orchestrator.clone()
-        } else {
-            None
-        }
-    }
-
-    /// The status retriever, when the question asks for the live status; it overrides the search mode.
-    fn status_route(&self, decision: &RoutingDecision) -> Option<Arc<dyn DeterministicRetriever>> {
-        if decision.intent == QueryIntent::SystemStatus {
-            self.status_retriever.clone()
-        } else {
-            None
-        }
-    }
-
-    /// The deterministic retriever, when the route is fast.
-    fn fast_route(&self, decision: &RoutingDecision) -> Option<Arc<dyn DeterministicRetriever>> {
-        let fast = decision.mode == AgentExecutionMode::Direct
-            || self.search_mode == SearchMode::Fast
-            || decision.complexity == router::QueryComplexity::Fast;
-        if fast {
-            self.deterministic_retriever.clone()
         } else {
             None
         }
@@ -236,16 +226,19 @@ impl Agent {
         session_id: Option<&str>,
     ) -> Result<AgentResponse, AgentError> {
         let output = retriever.retrieve_and_format(input).await?;
-        self.answer_one_hop(output, input, session_id).await
+        self.answer_one_hop(output, input, session_id, None).await
     }
 
     /// Answers from a one-hop retrieval: the nothing-found message without a model call, or one
-    /// model call, preceded by the weak-evidence warning when the evidence is weak.
+    /// model call, preceded by the weak-evidence warning when the evidence is weak. With an
+    /// `escalation` engine and sufficient evidence, the prompt carries the not-enough rule and
+    /// an answer that is the signal moves the question to Deep Search (IMP-038).
     async fn answer_one_hop(
         &self,
         output: DeterministicRetrievalOutput,
         input: &str,
         session_id: Option<&str>,
+        escalation: Option<Arc<DeepSearchOrchestrator>>,
     ) -> Result<AgentResponse, AgentError> {
         let start_time = Instant::now();
         match output {
@@ -265,12 +258,17 @@ impl Agent {
                 })
             }
             DeterministicRetrievalOutput::ContextReady { formatted_prompt, chunk_count: _, notice, evidence } => {
+                let escalation = escalation.filter(|_| evidence == Evidence::Sufficient);
                 let mut messages = Vec::new();
                 if let (Some(sid), Some(store)) = (session_id, self.orchestrator.session_store()) {
                     let prior = store.get_messages(sid).await.unwrap_or_default();
                     messages.extend(prior);
                 }
-                messages.push(ChatMessage::user(&formatted_prompt));
+                if escalation.is_some() {
+                    messages.push(ChatMessage::user(&escalation::with_not_enough_rule(&formatted_prompt)));
+                } else {
+                    messages.push(ChatMessage::user(&formatted_prompt));
+                }
 
                 let mut req = ChatRequest::new(&self.orchestrator.config().model, messages);
                 if let Some(t) = self.orchestrator.config().temperature {
@@ -279,7 +277,12 @@ impl Agent {
 
                 let res = self.orchestrator.client().chat_complete(req).await
                     .map_err(AgentError::LmError)?;
-                let content = res.content;
+                if let Some(dso) = escalation {
+                    if escalation::is_signal(&res.content) {
+                        return dso.run(input, session_id, None).await;
+                    }
+                }
+                let content = escalation::strip_signal(&res.content);
 
                 if let (Some(sid), Some(store)) = (session_id, self.orchestrator.session_store()) {
                     let _ = store.append_messages(sid, &[
@@ -306,23 +309,23 @@ impl Agent {
         session_id: Option<String>,
     ) -> (EventReceiver, tokio::task::JoinHandle<Result<AgentResponse, AgentError>>) {
         let inp = input.into();
-        let decision = self.router.evaluate(&inp, self.search_mode);
+        let decision = self.route(&inp);
         let (tx, rx) = event_channel();
 
-        // Emit RoutingDecision event immediately so UI/CLI can render badges
+        // The route first, so the interfaces can show it before anything else.
         let _ = tx.send(AgentEvent::RoutingDecision {
-            mode: format!("{:?}", decision.mode),
-            complexity: format!("{:?}", decision.complexity),
-            intent: decision.intent.as_str().to_string(),
-            confidence: decision.confidence,
-            reason: decision.reason.clone(),
+            route: decision.route.as_str().to_string(),
+            pinned: decision.pinned,
+            reason: decision.reason.to_string(),
         });
 
-        if let Some(retriever) = self.status_route(&decision) {
-            return (rx, self.stream_one_hop(retriever, inp, session_id, tx, None));
+        if decision.route == Route::Status {
+            if let Some(retriever) = self.status_retriever.clone() {
+                return (rx, self.stream_one_hop(retriever, inp, session_id, tx, None));
+            }
         }
 
-        if decision.mode == AgentExecutionMode::DeepSearch && self.deep_search_orchestrator.is_some() {
+        if decision.route == Route::Deep && self.deep_search_orchestrator.is_some() {
             let dso_clone = self.deep_search_orchestrator.clone().unwrap();
             let handle = tokio::spawn(async move {
                 let res = dso_clone.run(&inp, session_id.as_deref(), Some(tx.clone())).await;
@@ -334,7 +337,7 @@ impl Agent {
             return (rx, handle);
         }
 
-        if let Some(retriever) = self.fast_route(&decision) {
+        if let (Route::Fast, Some(retriever)) = (decision.route, self.deterministic_retriever.clone()) {
             let escalation = self.escalation_target();
             return (rx, self.stream_one_hop(retriever, inp, session_id, tx, escalation));
         }
@@ -351,7 +354,9 @@ impl Agent {
 
     /// One-hop RAG streamed as events: one retrieval, then at most one streamed model call.
     /// With an `escalation` engine (automatic mode), nothing found or weak evidence moves the
-    /// question to Deep Search after an `Escalation` event (IMP-046).
+    /// question to Deep Search after an `Escalation` event (IMP-046); with sufficient evidence the
+    /// prompt carries the not-enough rule, and an answer that starts with the signal is dropped
+    /// before any token is shown and moves the question to Deep Search too (IMP-038).
     fn stream_one_hop(
         &self,
         retriever: Arc<dyn DeterministicRetriever>,
@@ -367,7 +372,7 @@ impl Agent {
         tokio::spawn(async move {
             let start_time = Instant::now();
             let retrieved = retriever.retrieve_and_format(&inp).await;
-            if let (Some(dso), Ok(output)) = (escalation, retrieved.as_ref()) {
+            if let (Some(dso), Ok(output)) = (escalation.as_ref(), retrieved.as_ref()) {
                 if let Some(reason) = escalation_reason(output) {
                     let _ = tx.send(AgentEvent::Escalation { reason: reason.to_string() });
                     let res = dso.run(&inp, session_id.as_deref(), Some(tx.clone())).await;
@@ -406,12 +411,18 @@ impl Agent {
                     if weak {
                         let _ = tx.send(AgentEvent::Caveat(WEAK_EVIDENCE_WARNING.to_string()));
                     }
+                    let escalation = escalation.filter(|_| !weak);
                     let mut messages = Vec::new();
                     if let (Some(sid), Some(ref store)) = (session_id.as_deref(), session_store.as_ref()) {
                         let prior = store.get_messages(sid).await.unwrap_or_default();
                         messages.extend(prior);
                     }
-                    messages.push(ChatMessage::user(&formatted_prompt));
+                    if escalation.is_some() {
+                        messages.push(ChatMessage::user(&escalation::with_not_enough_rule(&formatted_prompt)));
+                    } else {
+                        messages.push(ChatMessage::user(&formatted_prompt));
+                    }
+                    let mut filter = escalation.as_ref().map(|_| escalation::SignalFilter::new());
 
                     let mut req = ChatRequest::new(&config.model, messages);
                     if let Some(t) = config.temperature {
@@ -423,12 +434,24 @@ impl Agent {
 
                     match client.chat_stream(req).await {
                         Ok(mut stream) => {
+                            let mut signalled = false;
                             while let Some(chunk_res) = stream.next().await {
                                 if let Ok(chunk) = chunk_res {
                                     match chunk {
                                         actx_lm::types::StreamChunk::Token(token) => {
-                                            response_content.push_str(&token);
-                                            let _ = tx.send(AgentEvent::Delta(token));
+                                            let shown = match filter.as_mut().map(|f| f.push(&token)) {
+                                                None => token,
+                                                Some(escalation::FilterStep::Pass(text)) => text,
+                                                Some(escalation::FilterStep::Hold) => continue,
+                                                Some(escalation::FilterStep::Signal) => {
+                                                    signalled = true;
+                                                    break;
+                                                }
+                                            };
+                                            if !shown.is_empty() {
+                                                response_content.push_str(&shown);
+                                                let _ = tx.send(AgentEvent::Delta(shown));
+                                            }
                                         }
                                         actx_lm::types::StreamChunk::Reasoning(reasoning) => {
                                             let _ = tx.send(AgentEvent::Thinking(reasoning));
@@ -440,6 +463,19 @@ impl Agent {
                                     }
                                 }
                             }
+                            if let (true, Some(dso)) = (signalled, escalation.as_ref()) {
+                                let _ = tx.send(AgentEvent::Escalation { reason: escalation::NOT_ENOUGH_REASON.to_string() });
+                                let res = dso.run(&inp, session_id.as_deref(), Some(tx.clone())).await;
+                                if let Err(ref e) = res {
+                                    let _ = tx.send(AgentEvent::Error(e.to_string()));
+                                }
+                                return res;
+                            }
+                            if let Some(rest) = filter.as_mut().map(|f| f.finish()).filter(|r| !r.is_empty()) {
+                                response_content.push_str(&rest);
+                                let _ = tx.send(AgentEvent::Delta(rest));
+                            }
+                            let response_content = escalation::strip_signal(&response_content);
                             if let Some(notice) = notice {
                                 let _ = tx.send(AgentEvent::Notice(notice));
                             }
@@ -507,7 +543,6 @@ pub struct AgentBuilder {
     synthesis_formatter: Option<Arc<dyn SynthesisPromptFormatter>>,
     deterministic_retriever: Option<Arc<dyn DeterministicRetriever>>,
     status_retriever: Option<Arc<dyn DeterministicRetriever>>,
-    router: Option<Arc<ChatModelRouter>>,
 }
 
 impl AgentBuilder {
@@ -560,11 +595,6 @@ impl AgentBuilder {
         self
     }
 
-    pub fn router(mut self, router: Arc<ChatModelRouter>) -> Self {
-        self.router = Some(router);
-        self
-    }
-
     pub fn deep_search_config(mut self, config: DeepSearchConfig) -> Self {
         self.deep_search_config = Some(config);
         self
@@ -586,7 +616,7 @@ impl AgentBuilder {
         self
     }
 
-    /// One-hop retriever for live status questions (`QueryIntent::SystemStatus`), in any search mode.
+    /// One-hop retriever for live status questions (`Route::Status`), in any search mode.
     pub fn status_retriever(mut self, retriever: Arc<dyn DeterministicRetriever>) -> Self {
         self.status_retriever = Some(retriever);
         self
@@ -640,8 +670,6 @@ impl AgentBuilder {
             None
         };
 
-        let router = self.router.unwrap_or_else(|| Arc::new(ChatModelRouter::default()));
-
         Ok(Agent {
             orchestrator,
             deep_search_orchestrator,
@@ -649,7 +677,6 @@ impl AgentBuilder {
             status_retriever: self.status_retriever,
             execution_mode: self.config.execution_mode,
             search_mode,
-            router,
         })
     }
 

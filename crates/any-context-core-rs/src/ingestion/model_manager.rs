@@ -23,7 +23,6 @@ pub enum OnnxModelCategory {
     LanguageModel,
     IngestionClassifier,
     ScannedClassifier,
-    QueryClassifier,
     DocumentVision,
     ReRanker,
     Embedding,
@@ -35,7 +34,6 @@ impl OnnxModelCategory {
             Self::LanguageModel => "Local Language Model",
             Self::IngestionClassifier => "Ingestion Classifier",
             Self::ScannedClassifier => "Scan Classifier",
-            Self::QueryClassifier => "Query Classifier",
             Self::DocumentVision => "Document Vision",
             Self::ReRanker => "Neural Re-Ranker",
             Self::Embedding => "Embedding Model",
@@ -181,23 +179,6 @@ pub const ONNX_CATALOG: &[OnnxModelSpec] = &[
         availability: ModelAvailability::Available,
         description: "Scanned-page sentinel weights (neural inference planned; 2D heuristic active)",
         fallback_description: "Rust 2D Spatial Heuristic (<5MB RAM)",
-        relevance: None,
-    },
-    OnnxModelSpec {
-        id: "bge-small-onnx",
-        name: "BGE-Small EN v1.5 (ONNX)",
-        category: OnnxModelCategory::QueryClassifier,
-        file_name: "bge_small_query_int8.onnx",
-        size_bytes: 133_093_490,
-        files: &[ModelFile {
-            file_name: "bge_small_query_int8.onnx",
-            url: "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/onnx/model.onnx",
-            size_bytes: 133_093_490,
-            sha256: "828e1496d7fabb79cfa4dcd84fa38625c0d3d21da474a00f08db0f559940cf35",
-        }],
-        availability: ModelAvailability::Available,
-        description: "Query routing weights (neural routing planned; keyword heuristic active)",
-        fallback_description: "Sub-microsecond Deterministic Classifier (<1µs / 0MB RAM)",
         relevance: None,
     },
     OnnxModelSpec {
@@ -538,8 +519,6 @@ impl OnnxModelManager {
             Self::find_spec("laya-int8")
         } else if clean == "mobilenet" || clean == "scans" {
             Self::find_spec("mobilenetv4-rvl-cdip")
-        } else if clean == "bge" || clean == "query" {
-            Self::find_spec("bge-small-onnx")
         } else if clean == "layoutlm" || clean == "layout" {
             Self::find_spec("layoutlmv3-int8")
         } else if clean == "clip" || clean == "vision" {
@@ -1008,10 +987,11 @@ mod tests {
     #[test]
     fn test_catalog_integrity() {
         let catalog = OnnxModelManager::catalog();
-        assert_eq!(catalog.len(), 14);
+        assert_eq!(catalog.len(), 13);
+        assert!(!catalog.iter().any(|m| m.id == "bge-small-onnx"), "query classifier weights removed (IMP-038)");
         for id in [
             "gemma-4-compact", "gemma-4-12b", "gemma-4-27b", "gemma-4-32b", "laya-int8",
-            "mobilenetv4-rvl-cdip", "layoutlmv3-int8", "clip-vit-int8", "bge-small-onnx",
+            "mobilenetv4-rvl-cdip", "layoutlmv3-int8", "clip-vit-int8",
             "mmarco-reranker", "bge-reranker-v2-m3", "multilingual-e5-small", "multilingual-e5-base", "bge-m3",
         ] {
             assert!(catalog.iter().any(|m| m.id == id), "missing {id}");
@@ -1053,8 +1033,8 @@ mod tests {
     #[test]
     fn test_inspect_store_does_not_panic() {
         let summary = OnnxModelManager::inspect_store();
-        assert_eq!(summary.total_count, 14);
-        assert_eq!(summary.models.len(), 14);
+        assert_eq!(summary.total_count, 13);
+        assert_eq!(summary.models.len(), 13);
     }
 
     #[test]

@@ -5,14 +5,13 @@
 //!   (requires the `runtime` feature).
 //! - Cross-Encoder Re-Ranker (mmarco-mMiniLMv2 / bge-reranker-v2-m3): **neural**, ONNX Runtime on CPU
 //!   (requires the `runtime` feature).
-//! - Query Classifier, Scan Sentinel, Layout Extractor, Vision Encoder: **heuristic**
+//! - Scan Sentinel, Layout Extractor, Vision Encoder: **heuristic**
 //!   (deterministic Rust; downloaded weights are not executed yet).
 //! - Gemma 4 local generation: **planned** (no generative runtime yet).
 
 pub mod runtime;
 pub mod tokenizer;
 pub mod session;
-pub mod query_classifier;
 pub mod scan_sentinel;
 pub mod layout_extractor;
 pub mod vision_encoder;
@@ -23,7 +22,6 @@ pub mod reranker;
 pub mod embedder;
 
 pub use session::ModelSession;
-pub use query_classifier::{OnnxComplexity, OnnxIntent, OnnxQueryClassifier};
 pub use scan_sentinel::OnnxScanSentinel;
 pub use layout_extractor::OnnxLayoutExtractor;
 pub use vision_encoder::OnnxVisionEncoder;

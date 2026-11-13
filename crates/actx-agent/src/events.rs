@@ -29,12 +29,11 @@ pub enum AgentEvent {
     /// Streaming text delta for the final response
     Delta(String),
 
-    /// Dynamic routing decision emitted by ChatModelRouter
+    /// Route of the question, sent first (IMP-038): `fast`, `deep` or `status`, whether the user
+    /// pinned the mode, and the reason.
     RoutingDecision {
-        mode: String,
-        complexity: String,
-        intent: String,
-        confidence: f32,
+        route: String,
+        pinned: bool,
         reason: String,
     },
 
@@ -56,7 +55,8 @@ pub enum AgentEvent {
     },
 
     /// Automatic mode moved the question from Fast to Deep Search: the quick search found no
-    /// relevant excerpt (IMP-046). Sent before the Deep Search events.
+    /// relevant excerpt (IMP-046) or the LLM said the excerpts do not answer it (IMP-038). Sent
+    /// before the Deep Search events.
     Escalation {
         reason: String,
     },
