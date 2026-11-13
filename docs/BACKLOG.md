@@ -90,6 +90,13 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Plan**: -
 - **Description**: `config/AGENT.md` tells the model to call `add_web_source`, `list_web_sources`, `remove_web_source` and `search_db(search_session_memory=True)`, but only `search_db(query)` and `system_status` are registered. It also says the model must always call `search_db` first, while the deterministic path sends the retrieved chunks with no tools available.
 
+### BUG-013: Website sources are sent to the Jina Reader service without consent
+- **Severity**: high
+- **Status**: open
+- **Found**: 2026-11-13, v0.45.0, Admin Hub network containment agreement
+- **Plan**: -
+- **Description**: The crawler (ingestion/crawler.rs) builds a NativeJinaExtractor by default and sends every crawled URL to `https://r.jina.ai/{url}` (ingestion/jina.rs); native HTML extraction is only a fallback on error. Internal addresses (private ranges, loopback, single-label and internal DNS names) reach a third party, and the user is only told in the README. This breaks the rule that customer data stays inside the customer's perimeter and, in personal use, that nothing goes to a third party without explicit consent. Fix ahead of the network gateway: native extraction by default; Jina only after the explicit opt-in of FEAT-019, never for internal addresses, and never in the corporate environment.
+
 ## Features
 
 ### FEAT-001: actx profile install command
@@ -217,6 +224,27 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Found**: 2026-10-17, v0.45.0, product ideas review
 - **Plan**: -
 - **Description**: Expose AnyContext workspaces through an MCP server so other agents and IDEs can query them. There is no API or MCP surface today. Discussion item.
+
+### FEAT-019: Egress consent and containment modes
+- **Priority**: high
+- **Status**: open
+- **Found**: 2026-11-13, v0.45.0, Admin Hub network containment agreement
+- **Plan**: -
+- **Description**: Product rule: in corporate use, customer data and the product stay strictly inside the customer's perimeter, enforced by mechanisms; in personal use, any connection to a third party is disclosed and needs the user's explicit opt-in before it happens. Needs an ADR. One egress module through which every HTTP client of the product (reqwest and ureq) is built, classifying each destination as local (loopback), customer-configured (model endpoint, web page sources) or third party (cloud model providers, web search providers, Jina Reader, Hugging Face model downloads, GitHub self-update); a test fails on any HTTP client built outside it. Personal mode: before the first connection to each third-party group, a prompt says what leaves the machine and to whom; the choice is per group, stored locally, listed and revocable from a command, and nothing is contacted while it is undecided. Corporate mode: every third-party group is denied by default with no user override; only destinations allowed by the organization policy are reached; web search is off unless an approved provider is configured. The install scripts list what they download and from where (GitHub releases, bun.sh, raw.githubusercontent.com Tesseract files). Ships before the gateway (FEAT-020), which later enforces the corporate mode.
+
+### FEAT-020: Adopt the levix-platform network gateway and declare egress in the manifest
+- **Priority**: high
+- **Status**: open
+- **Found**: 2026-11-13, v0.45.0, Admin Hub network containment agreement
+- **Plan**: -
+- **Description**: Agreed with the Admin Hub (Admin Hub ADR-0009, levix-platform ADR-0002 and FEAT-026); blocked until Levix-Digital/levix-admin-hub#21 and Levix-Digital/levix-platform#7 are merged. The product manifest declares the customer-configured destination kinds (OpenAI-compatible model endpoint, local runtimes on loopback, web page sources) and the fixed hosts, flagged as outside any perimeter: api.openai.com, api.anthropic.com, generativelanguage.googleapis.com, api.groq.com, api.deepseek.com, openrouter.ai, html.duckduckgo.com, api.duckduckgo.com, google.serper.dev, api.tavily.com, r.jina.ai, huggingface.co, api.github.com and github.com. Every outbound connection, loopback included, is opened through the gateway behind the egress module of FEAT-019; a direct connection is a defect; blocks are reported as metadata only. Also implements the AnyContext product category of Admin Hub FEAT-028 (models and endpoints, web search and domains), which may only narrow the common network category.
+
+### FEAT-021: Customer mirror for model downloads and updates
+- **Priority**: medium
+- **Status**: open
+- **Found**: 2026-11-13, v0.45.0, Admin Hub network containment agreement
+- **Plan**: -
+- **Description**: ONNX model downloads (actx-installer hardware.rs and core ingestion/model_manager.rs) are pinned to huggingface.co and self-update (actx-installer downloader.rs) to GitHub releases, so neither works inside a closed perimeter. A configurable mirror (set locally or by organization policy) serves the same pinned files and release assets, with the same checksum verification, and becomes the only source in the corporate environment.
 
 ## Improvements
 
