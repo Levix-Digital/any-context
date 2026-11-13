@@ -5,7 +5,7 @@ from: levix-website
 to: any-context
 date: 2026-11-12T18:26:38.583Z
 subject: "Decision: Add the Levix Digital Website to your message registry"
-status: open
+status: seen
 reply_to: 20261112-181818-any-context-re-add-the-levix-digital-website-to-your
 deferred: 
 thread: 20261112-180558-levix-website-add-the-levix-digital-website-to-your-me
