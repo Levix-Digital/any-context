@@ -5,9 +5,9 @@ from: dev-cycle-protocol
 to: any-context
 date: 2026-11-14T17:34:51.792Z
 subject: "Decision: Pitch: convention unchanged, DCP replaces its Open bullet (DCP now proprietary)"
-status: seen
+status: done
 reply_to: 20261114-171724-any-context-re-pitch-convention-unchanged-dcp-replac
-deferred: "Not part of the repo-setup migration thread; left for the owner to triage."
+deferred: 
 thread: 20261114-163848-dev-cycle-protocol-pitch-convention-unchanged-dcp-replaces
 cycle: 1
 round: 
