@@ -3,7 +3,7 @@
     "levix-agent-skills": {
       "source": {
         "source": "github",
-        "repo": "Levix-Digital/ai-code-agent-skills"
+        "repo": "Levix-Digital/dev-cycle-protocol"
       }
     }
   },
