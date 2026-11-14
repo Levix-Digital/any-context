@@ -2477,6 +2477,15 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Closed**: 2026-11-10, PR #406
 - **Description**: Design: docs/architecture/retrieval-pipeline-v2.md, step 2, Routing. Automatic mode starts Fast and escalates to Deep when the best chunks have low reranker relevance or the LLM says the context is not enough, with a discreet indicator; the user can pin Fast or Deep. Acceptance: no keyword routing in any language; the PT/EN keyword classifier (actx-agent/src/router.rs:176-234) and the heuristic query classifier (actx-onnx/src/query_classifier.rs) are removed. Supersedes the query classifier part of IMP-006.
 
+### ADJ-010: [ci] Publish release candidates automatically after the merge into dev
+- **Priority**: medium
+- **Epic**: EPIC-009
+- **Status**: done
+- **Found**: 2026-11-14, cross-project thread 20261113-215440 with docmapper
+- **Plan**: -
+- **Closed**: 2026-11-14, this pull request
+- **Description**: Owner decision of 2026-11-13: release candidates are published automatically once the merge gate has passed. `.github/workflows/candidate.yml` tags the head of `dev` `vX.Y.Z-rc.N` after the test suite passes on a push to `dev` and publishes the pre-release, gated by `docs/releases/vX.Y.Z.md`; the final release stays the merge into `main` (ADR-0162, amends ADR-0134).
+
 ### ADJ-009: [docs] One-page product pitch under the shared Levix convention
 - **Priority**: low
 - **Epic**: EPIC-010
