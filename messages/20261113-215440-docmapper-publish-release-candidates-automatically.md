@@ -5,7 +5,7 @@ from: docmapper
 to: any-context
 date: 2026-11-13T21:54:40.344Z
 subject: "Publish release candidates automatically after the merge gate"
-status: seen
+status: done
 reply_to: 
 deferred: 
 thread: 20261113-215440-docmapper-publish-release-candidates-automatically
