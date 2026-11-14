@@ -5,9 +5,9 @@ from: levix-website
 to: any-context
 date: 2026-11-14T15:58:18.315Z
 subject: "Keep agent instructions, skills and memory in the repository (repo-setup, Migrate)"
-status: seen
+status: done
 reply_to: 
-deferred: "Repository-wide migration (repo-setup Migrate); this session cannot read LeviGuilherme/agents-skills and has no specify CLI. Waiting for the owner to add the skill repository and start a dedicated thread."
+deferred: 
 thread: 20261114-155818-levix-website-keep-agent-instructions-skills-and-memor
 cycle: 1
 round: 1
