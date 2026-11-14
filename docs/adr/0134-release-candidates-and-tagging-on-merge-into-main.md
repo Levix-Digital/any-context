@@ -8,7 +8,7 @@ subsystems: [ci-release]
 supersedes: []
 superseded_by: []
 amends: []
-amended_by: []
+amended_by: [162]
 ---
 
 # ADR-0134: Release candidates and tagging on merge into main

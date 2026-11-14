@@ -1,0 +1,88 @@
+# Automatic release candidate after the merge gate (ADR-0162).
+# When the test suite passes on a push to dev (a merged pull request), tags the head of dev
+# vX.Y.Z-rc.N, with X.Y.Z from version.txt and N the next candidate number of that version,
+# and runs the release workflow for that tag in the same run (a tag pushed with GITHUB_TOKEN
+# does not trigger a workflow on its own). Candidates stay pre-releases, never latest; the
+# final release is still the owner's merge into main (tag-on-merge.yml).
+name: Release Candidate
+
+on:
+  workflow_run:
+    workflows: ["Rust Workspace Test Suite"]
+    types: [completed]
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: release-candidate
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Create candidate tag
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'dev')
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.cut.outputs.tag }}
+      created: ${{ steps.cut.outputs.created }}
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Decide and tag
+        id: cut
+        env:
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha || '' }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --force origin
+          skip() {
+            echo "No candidate: $1" | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+          HEAD_SHA="$(git rev-parse HEAD)"
+          SHA="${TESTED_SHA:-$HEAD_SHA}"
+          if [ "$SHA" != "$HEAD_SHA" ]; then
+            skip "dev has moved on since the tested commit ${SHA:0:7}; the newer push gets its own run."
+          fi
+          VERSION="$(tr -d '[:space:]' < version.txt | sed 's/^v//')"
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            skip "v$VERSION is already released; bump version.txt first."
+          fi
+          if git tag --points-at "$SHA" | grep -qE "^v$VERSION-rc\.[0-9]+$"; then
+            skip "commit ${SHA:0:7} already has a candidate of v$VERSION."
+          fi
+          NOTES="docs/releases/v$VERSION.md"
+          if [ ! -f "$NOTES" ]; then
+            skip "the candidate notes $NOTES are missing; v$VERSION is not ready for testers."
+          fi
+          LAST="$(git tag -l "v$VERSION-rc.*" | sed -E 's/.*-rc\.([0-9]+)$/\1/' | sort -n | tail -1)"
+          TAG="v$VERSION-rc.$(( ${LAST:-0} + 1 ))"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release candidate $TAG" "$SHA"
+          git push origin "$TAG"
+          echo "Candidate $TAG tagged at ${SHA:0:7}." | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+  release:
+    name: Release
+    needs: tag
+    if: needs.tag.outputs.created == 'true'
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
+    secrets: inherit
