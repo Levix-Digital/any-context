@@ -2483,7 +2483,7 @@ Each item: `### <ID>: <title>` with the fields `Severity` (bugs: critical, high,
 - **Status**: done
 - **Found**: 2026-11-14, cross-project thread 20261113-215440 with docmapper
 - **Plan**: -
-- **Closed**: 2026-11-14, this pull request
+- **Closed**: 2026-11-14, PR #411
 - **Description**: Owner decision of 2026-11-13: release candidates are published automatically once the merge gate has passed. `.github/workflows/candidate.yml` tags the head of `dev` `vX.Y.Z-rc.N` after the test suite passes on a push to `dev` and publishes the pre-release, gated by `docs/releases/vX.Y.Z.md`; the final release stays the merge into `main` (ADR-0162, amends ADR-0134).
 
 ### ADJ-009: [docs] One-page product pitch under the shared Levix convention
