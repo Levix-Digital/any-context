@@ -66,7 +66,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        # Pinned: with rustc 1.100.0 sccache fails on Windows compiling lance-table
+        # (os error 206, command line too long). Unpin once that is fixed.
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.99.1
 
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
