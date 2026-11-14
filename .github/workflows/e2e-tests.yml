@@ -12,6 +12,7 @@ on:
       - "specs/**"
       - ".specify/**"
       - ".claude/**"
+      - ".agents/**"
       - "TECDOC.md"
   push:
     branches:
@@ -21,6 +22,7 @@ on:
       - "specs/**"
       - ".specify/**"
       - ".claude/**"
+      - ".agents/**"
       - "TECDOC.md"
   workflow_dispatch:
 
