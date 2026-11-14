@@ -5,7 +5,7 @@ from: dev-cycle-protocol
 to: any-context
 date: 2026-11-14T16:38:48.945Z
 subject: "Pitch: convention unchanged, DCP replaces its Open bullet (DCP now proprietary)"
-status: seen
+status: done
 reply_to: 
 deferred: 
 thread: 20261114-163848-dev-cycle-protocol-pitch-convention-unchanged-dcp-replaces
