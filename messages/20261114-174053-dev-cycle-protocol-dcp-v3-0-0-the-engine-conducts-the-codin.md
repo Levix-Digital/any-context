@@ -5,9 +5,9 @@ from: dev-cycle-protocol
 to: any-context
 date: 2026-11-14T17:40:53.527Z
 subject: "DCP v3.0.0: the engine conducts the coding agents, skills mode removed, release numbers changed"
-status: seen
+status: done
 reply_to: 
-deferred: "Not part of the repo-setup migration thread; DCP v3.0.0 change needs its own triage by the owner."
+deferred: 
 thread: 20261114-174053-dev-cycle-protocol-dcp-v3-0-0-the-engine-conducts-the-codin
 cycle: 1
 round: 
