@@ -7,7 +7,7 @@ date: 2026-11-13T15:56:16.333Z
 subject: "Repository renamed: update the dev-cycle-protocol URL in your registry"
 status: seen
 reply_to: 
-deferred: 
+deferred: "Edit done in any-context PRs #409 (main) and #410 (dev); ack goes once the owner merges #409."
 thread: 20261113-155616-dev-cycle-protocol-repository-renamed-update-the-dev-cycle
 cycle: 1
 round: 1
@@ -33,3 +33,5 @@ Your registry points to the new URL on your default branch, confirmed with an ac
 
 ### Authority
 The projects settle the edit itself; nothing goes to the user unless the change cannot be made.
+
+> seen (2026-11-14 17:16 UTC): deferred: Edit done in any-context PRs #409 (main) and #410 (dev); ack goes once the owner merges #409.
